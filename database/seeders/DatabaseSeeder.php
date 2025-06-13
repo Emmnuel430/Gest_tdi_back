@@ -22,15 +22,6 @@ class DatabaseSeeder extends Seeder
         // ]);
 
         $this->call(UserSeeder::class);
-        $this->call([
-            ActualiteSeeder::class,
-            EtudeSeeder::class,
-            EvenementSeeder::class,
-        ]);
-        $this->call([
-            SynagogueSeeder::class,
-            FondementSeeder::class,
-            ParachaSeeder::class,
-        ]);
+
     }
 }
