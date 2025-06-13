@@ -124,7 +124,7 @@ class PageController extends Controller
             $sectionIdsToKeep = [];
             $subsectionIdsToKeep = [];
 
-            foreach ($request->sections as $i => $sectionData) {
+            foreach ($request->input('sections', []) as $i => $sectionData) {
                 $section = isset($sectionData['id'])
                     ? $page->sections()->where('id', $sectionData['id'])->first()
                     : null;
