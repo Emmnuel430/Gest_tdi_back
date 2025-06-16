@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\PageController;
+use App\Http\Controllers\LayoutController;
 
 Route::middleware('auth:sanctum')->group(function () {
 });
@@ -20,7 +21,7 @@ Route::post('update_user/{id}', [UserController::class, 'updateUser']);
 Route::delete('delete_user/{id}', [UserController::class, 'deleteUser']);
 
 /* 
- 
+
  Je vais essayer de créer un CMS bonne chance à moi même
 Je suis un dur 😎, j'ai réussi !
 
@@ -32,6 +33,14 @@ Route::post('/update_page/{id}', [PageController::class, 'update']);
 Route::delete('/delete_page/{id}', [PageController::class, 'destroy']);
 Route::get('/pages/{slug}', [PageController::class, 'show']);
 Route::get('/page/{id}', [PageController::class, 'get']);
+
+
+Route::get('/ads', [LayoutController::class, 'index']);        // Liste tous
+Route::get('/ads/{id}', [LayoutController::class, 'show']);     // Voir un
+Route::post('/ads', [LayoutController::class, 'store']);        // Créer
+Route::post('/ads/{id}', [LayoutController::class, 'update']);   // Mettre à jour
+Route::delete('/ads/{id}', [LayoutController::class, 'destroy']); // Supprimer
+
 
 // --------------
 use App\Models\Subsection;

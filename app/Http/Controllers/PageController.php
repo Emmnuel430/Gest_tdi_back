@@ -18,8 +18,11 @@ class PageController extends Controller
     // 🔍 Liste des pages avec relations
     public function index()
     {
-        return Page::with('sections.subsections')->get();
+        return Page::with(['sections.subsections'])
+            ->orderByRaw('`order` IS NULL, `order` ASC') // 👈 NULLs à la fin
+            ->get();
     }
+
 
     // ➕ Création complète : page + sections + sous-sections
     public function store(Request $request)
@@ -36,6 +39,7 @@ class PageController extends Controller
                 'template' => $request->template,
                 'main_image' => null, // temporaire
                 'slug' => Str::slug($request->title),
+                'order' => $request->order ?? null,
             ]);
 
             $pageId = $page->id;
@@ -119,6 +123,7 @@ class PageController extends Controller
                 'template' => $request->template,
                 'main_image' => $mainImagePath,
                 'slug' => Str::slug($request->title),
+                'order' => $request->order ?? null,
             ]);
 
             $sectionIdsToKeep = [];
