@@ -99,7 +99,7 @@ class PageController extends Controller
 
     public function update(Request $request, $id)
     {
-        // \Log::info($request->all());
+        \Log::info($request->all());
 
         $config = HTMLPurifier_Config::createDefault();
         $purifier = new HTMLPurifier($config);
@@ -211,6 +211,20 @@ class PageController extends Controller
                 });
                 $section->delete();
             });
+
+            // Supprimer les sous-sections explicitement supprimées dans le frontend
+            if ($request->has('deleted_subsections')) {
+                foreach ($request->input('deleted_subsections') as $deletedId) {
+                    $sub = Subsection::find($deletedId);
+                    if ($sub) {
+                        if ($sub->image) {
+                            Storage::disk('public')->delete($sub->image);
+                        }
+                        $sub->delete();
+                    }
+                }
+            }
+
 
             $page->touch(); // Met à jour updated_at
             DB::commit();
