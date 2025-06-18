@@ -99,24 +99,36 @@ class PageController extends Controller
 
     public function update(Request $request, $id)
     {
-        \Log::info($request->all());
-
+        // Configuration de HTMLPurifier pour nettoyer le HTML des sous-sections
         $config = HTMLPurifier_Config::createDefault();
         $purifier = new HTMLPurifier($config);
         DB::beginTransaction();
 
         try {
+            // Récupération de la page avec ses sections et sous-sections
             $page = Page::with('sections.subsections')->findOrFail($id);
             $pageId = $page->id;
 
-            // Gérer l'image principale
-            if ($request->hasFile('main_image') && $page->main_image) {
+            /*
+            |--------------------------------------------------------------------------
+            | 1. Gestion de l'image principale de la page
+            |--------------------------------------------------------------------------
+            */
+            // Suppression demandée depuis le front
+            if ($request->input('delete_main_image') === "1" && $page->main_image) {
                 Storage::disk('public')->delete($page->main_image);
+                $mainImagePath = null;
+            } else {
+                // Gérer remplacement image principale si fournie
+                if ($request->hasFile('main_image') && $page->main_image) {
+                    Storage::disk('public')->delete($page->main_image);
+                }
+                $mainImagePath = $request->hasFile('main_image')
+                    ? $request->file('main_image')->store("pages/page_$pageId/main", 'public')
+                    : $page->main_image;
             }
-            $mainImagePath = $request->hasFile('main_image')
-                ? $request->file('main_image')->store("pages/page_$pageId/main", 'public')
-                : $page->main_image;
 
+            // Mise à jour des informations principales de la page
             $page->update([
                 'title' => $request->title,
                 'subtitle' => $request->subtitle,
@@ -126,16 +138,30 @@ class PageController extends Controller
                 'order' => $request->order ?? null,
             ]);
 
-            $sectionIdsToKeep = [];
-            $subsectionIdsToKeep = [];
-
+            $sectionIdsToKeep = [];      // Liste des sections conservées
+            /*
+            |--------------------------------------------------------------------------
+            | 2. Parcours des sections envoyées par le frontend
+            |--------------------------------------------------------------------------
+            */
             foreach ($request->input('sections', []) as $i => $sectionData) {
+                // Récupère une section existante ou null
                 $section = isset($sectionData['id'])
                     ? $page->sections()->where('id', $sectionData['id'])->first()
                     : null;
 
-                // Image section
+                // Chemin de l'image de section (ancienne ou à remplacer)
                 $sectionImagePath = $section->image ?? null;
+
+                // Suppression de l'image si demandé par le frontend
+                if ($request->input("sections.$i.delete_image") === "1") {
+                    if ($sectionImagePath) {
+                        Storage::disk('public')->delete($sectionImagePath);
+                    }
+                    $sectionImagePath = null;
+                }
+
+                // Upload d'une nouvelle image si fournie
                 if ($request->hasFile("sections.$i.image")) {
                     if ($sectionImagePath) {
                         Storage::disk('public')->delete($sectionImagePath);
@@ -143,6 +169,7 @@ class PageController extends Controller
                     $sectionImagePath = $request->file("sections.$i.image")->store("pages/page_$pageId/sections", 'public');
                 }
 
+                // Mise à jour ou création de la section
                 if ($section) {
                     $section->update([
                         'title' => $sectionData['title'],
@@ -161,12 +188,27 @@ class PageController extends Controller
 
                 $sectionIdsToKeep[] = $section->id;
 
+                /*
+                |--------------------------------------------------------------------------
+                | 3. Sous-sections liées à cette section
+                |--------------------------------------------------------------------------
+                */
                 foreach ($sectionData['subsections'] ?? [] as $j => $subsectionData) {
                     $sub = isset($subsectionData['id'])
                         ? $section->subsections()->where('id', $subsectionData['id'])->first()
                         : null;
 
                     $subImagePath = $sub->image ?? null;
+
+                    // Suppression de l'image si demandée
+                    if ($request->input("sections.$i.subsections.$j.delete_image") === "1") {
+                        if ($subImagePath) {
+                            Storage::disk('public')->delete($subImagePath);
+                        }
+                        $subImagePath = null;
+                    }
+
+                    // Upload nouvelle image de sous-section
                     if ($request->hasFile("sections.$i.subsections.$j.image")) {
                         if ($subImagePath) {
                             Storage::disk('public')->delete($subImagePath);
@@ -174,8 +216,11 @@ class PageController extends Controller
                         $subImagePath = $request->file("sections.$i.subsections.$j.image")->store("pages/page_$pageId/subsections", 'public');
                     }
 
+                    // Nettoyage du HTML (éditeur richtext)
+                    $cleanHtml = $purifier->purify($subsectionData['content'] ?? '');
+
+                    // Mise à jour ou création de la sous-section
                     if ($sub) {
-                        $cleanHtml = $purifier->purify($subsectionData['content'] ?? '');
                         $sub->update([
                             'title' => $subsectionData['title'],
                             'content' => $cleanHtml,
@@ -185,7 +230,6 @@ class PageController extends Controller
                             'order' => $subsectionData['order'] ?? 1,
                         ]);
                     } else {
-                        $cleanHtml = $purifier->purify($subsectionData['content'] ?? '');
                         $sub = $section->subsections()->create([
                             'title' => $subsectionData['title'],
                             'content' => $cleanHtml,
@@ -200,19 +244,31 @@ class PageController extends Controller
                 }
             }
 
-            // Supprimer les sections et sous-sections non présentes
+            /*
+            |--------------------------------------------------------------------------
+            | 4. Suppression des sections non conservées
+            |--------------------------------------------------------------------------
+            */
             $page->sections()->whereNotIn('id', $sectionIdsToKeep)->each(function ($section) {
+                // Supprimer image de section
                 if ($section->image)
                     Storage::disk('public')->delete($section->image);
+
+                // Supprimer toutes les sous-sections de cette section
                 $section->subsections->each(function ($sub) {
                     if ($sub->image)
                         Storage::disk('public')->delete($sub->image);
                     $sub->delete();
                 });
+
                 $section->delete();
             });
 
-            // Supprimer les sous-sections explicitement supprimées dans le frontend
+            /*
+            |--------------------------------------------------------------------------
+            | 5. Suppression explicite de sous-sections (via deleted_subsections[])
+            |--------------------------------------------------------------------------
+            */
             if ($request->has('deleted_subsections')) {
                 foreach ($request->input('deleted_subsections') as $deletedId) {
                     $sub = Subsection::find($deletedId);
@@ -225,16 +281,21 @@ class PageController extends Controller
                 }
             }
 
-
-            $page->touch(); // Met à jour updated_at
+            /*
+            |--------------------------------------------------------------------------
+            | 6. Finalisation
+            |--------------------------------------------------------------------------
+            */
+            $page->touch(); // Mise à jour du timestamp `updated_at`
             DB::commit();
+
             return response()->json(['message' => 'Page mise à jour avec succès']);
+
         } catch (\Throwable $e) {
             DB::rollBack();
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
-
 
     // ❌ Suppression complète
     public function destroy($id)
