@@ -8,8 +8,17 @@ use Illuminate\Database\Eloquent\Model;
 class Subsection extends Model
 {
     use HasFactory;
+    // The table associated with the model.
 
-    protected $fillable = ['section_id', 'title', 'content', 'image', 'order', 'date', 'prix'];
+    protected $fillable = [
+        'section_id',
+        'title',
+        'content',
+        'image',
+        'order',
+        'date',
+        'prix'
+    ];
     protected $touches = ['section'];
 
 

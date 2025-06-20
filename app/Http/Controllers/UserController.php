@@ -69,7 +69,7 @@ class UserController extends Controller
 
         $user->delete();
 
-        return response()->json(['message' => 'Utilisateur supprimé', 'status' => 'deleted']);
+        return response()->json(['message' => 'Utilisateur supprimé avec succès !', 'status' => 'deleted']);
     }
 
     // 🔓 Connexion avec Sanctum
