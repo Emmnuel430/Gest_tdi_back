@@ -212,4 +212,5 @@ return [
         // 'ExampleClass' => App\Example\ExampleClass::class,
     ])->toArray(),
 
+    'members_url' => env('APP_MEMBERS_URL', 'https://localhost:3001'),
 ];

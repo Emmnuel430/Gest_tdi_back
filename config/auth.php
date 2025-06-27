@@ -45,6 +45,11 @@ return [
             'driver' => 'sanctum',
             'provider' => 'users',
         ],
+
+        'adherent' => [
+            'driver' => 'sanctum',
+            'provider' => 'adherents',
+        ],
     ],
 
     /*
@@ -68,6 +73,11 @@ return [
         'users' => [
             'driver' => 'eloquent',
             'model' => App\Models\User::class,
+        ],
+
+        'adherents' => [
+            'driver' => 'eloquent',
+            'model' => App\Models\Adherent::class,
         ],
 
         // 'users' => [
