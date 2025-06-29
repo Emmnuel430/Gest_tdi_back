@@ -10,7 +10,7 @@ class Content extends Model
     use HasFactory;
     protected $fillable = [
         'title',
-        'type', // ['formation', 'cours', 'evenement']
+        'type', // ['formation', 'cours']
         'access_level', // ['standard', 'premium']
         'content',
         'lien'

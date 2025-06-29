@@ -68,6 +68,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/adherents', [AdherentController::class, 'index']);
     Route::delete('/adherents/{id}', [AdherentController::class, 'destroy']); // Supprimer un adhérent
     Route::post('/adherents/{id}/validate', [AdherentController::class, 'validateAdherent']);
+    Route::get('/adherents/{id}', [AdherentController::class, 'show']);
     Route::put('/adherents/{id}', [AdherentController::class, 'update']);
 
 
