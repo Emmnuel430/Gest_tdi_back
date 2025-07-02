@@ -33,7 +33,7 @@ Route::middleware(['auth:sanctum', 'adherent'])->group(function () {
         return response()->json(['message' => 'Déconnecté avec succès']);
     });
 
-    Route::get('/adherents/{id}', [AdherentController::class, 'show']); // Voir un adhérent
+    Route::get('/adherents-public/{id}', [AdherentController::class, 'show']); // Voir un adhérent
 
 });
 
