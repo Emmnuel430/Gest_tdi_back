@@ -98,48 +98,34 @@ class AdherentController extends Controller
             'prenom' => 'required|string|max:255',
             // 'email' => 'required|email|unique:adherents,email,' . $adherent->id,
             'contact' => 'nullable|string',
-            'pseudo' => 'nullable|string|max:255',
-            'password' => 'nullable|string|min:6',
-            // 'moyen_paiement' => 'required|string',
             'statut' => 'required|in:standard,premium',
             'abonnement_type' => 'nullable|in:hebdomadaire,mensuel,annuel',
             'abonnement_expires_at' => 'nullable|date',
             'is_validated' => 'nullable|boolean',
-            // 'preuve_paiement' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:2048',
         ]);
-
-        // 🔁 Met à jour la preuve si un nouveau fichier est envoyé
-        // if ($request->hasFile('preuve_paiement')) {
-        //     // Supprimer l'ancienne si elle existe
-        //     if ($adherent->preuve_paiement) {
-        //         Storage::disk('public')->delete($adherent->preuve_paiement);
-        //     }
-
-        //     $validated['preuve_paiement'] = $request->file('preuve_paiement')->store('adherents', 'public');
-        // }
         // --- Vérification si pseudo ou mot de passe ont changé
-        $newPseudo = !empty($validated['pseudo']);
-        $pseudoChanged = $newPseudo && $newPseudo !== $adherent->pseudo;
+        // $newPseudo = !empty($validated['pseudo']);
+        // $pseudoChanged = $newPseudo && $newPseudo !== $adherent->pseudo;
 
-        $passwordChanged = !empty($validated['password']);
+        // $passwordChanged = !empty($validated['password']);
 
 
-        // Enregistrement du mot de passe en clair (pour email uniquement)
-        $passwordClair = $validated['password'] ?? null;
+        // // Enregistrement du mot de passe en clair (pour email uniquement)
+        // $passwordClair = $validated['password'] ?? null;
 
-        // 🔒 Si un mot de passe est fourni, on le hash
-        if ($passwordChanged) {
-            $validated['password'];
-        } else {
-            unset($validated['password']); // sinon ne pas l’écraser
-        }
+        // // 🔒 Si un mot de passe est fourni, on le hash
+        // if ($passwordChanged) {
+        //     $validated['password'];
+        // } else {
+        //     unset($validated['password']); // sinon ne pas l’écraser
+        // }
 
-        // 🔒 Si un pseudo est fourni
-        if ($newPseudo) {
-            $validated['pseudo'] = $newPseudo;
-        } else {
-            unset($validated['pseudo']);
-        }
+        // // 🔒 Si un pseudo est fourni
+        // if ($newPseudo) {
+        //     $validated['pseudo'] = $newPseudo;
+        // } else {
+        //     unset($validated['pseudo']);
+        // }
 
         // --- Envoi du mail si nécessaire
         // if ($pseudoChanged || $passwordChanged) {
