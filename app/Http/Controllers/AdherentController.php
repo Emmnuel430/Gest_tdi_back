@@ -167,7 +167,7 @@ class AdherentController extends Controller
 
         // Optionnel : vérifier si l'adhérent est validé
         if (!$adherent->is_validated) {
-            return response()->json(['message' => 'Votre compte n\'est pas encore validé.'], 403);
+            return response()->json(['message' => 'Ce compte n\'est pas valide.'], 403);
         }
 
         $token = $adherent->createToken('auth_token')->plainTextToken;

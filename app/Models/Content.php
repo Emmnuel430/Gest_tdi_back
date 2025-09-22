@@ -13,7 +13,11 @@ class Content extends Model
         'type', // ['formation', 'cours']
         'access_level', // ['standard', 'premium']
         'content',
-        'lien'
+        'lien',
+        'publish_at',
     ];
+
+    protected $dates = ['publish_at'];
+
 
 }

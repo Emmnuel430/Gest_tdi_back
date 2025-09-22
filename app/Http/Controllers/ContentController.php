@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Content;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -16,6 +17,7 @@ class ContentController extends Controller
             'access_level' => 'required|in:standard,premium',
             'content' => 'nullable|string',
             'lien' => 'nullable|url',
+            'publish_at' => 'nullable|date',
         ]);
 
         $content = Content::create($validated);
@@ -43,38 +45,35 @@ class ContentController extends Controller
 
     public function byType(Request $request)
     {
-
         $adherent = auth()->user();
 
-        $accessLevels = match ($adherent->statut) {
-            'premium' => ['standard', 'premium'],
-            default => ['standard'],
-        };
+        $accessLevels = $adherent->statut === 'premium'
+            ? ['standard', 'premium']
+            : ['standard'];
 
-        $query = Content::whereIn('access_level', $accessLevels);
+        $now = now();
 
-        // Si un type est fourni, filtrer dessus
-        if ($request->has('type')) {
+        $contents = Content::whereIn('access_level', $accessLevels)
+            ->when($request->type, fn($q) => $q->where('type', $request->type))
+            ->where(function ($q) use ($now) {
+                $q->whereNull('publish_at')
+                    ->orWhere('publish_at', '<=', $now);
+            })
+            ->get();
 
-            $query->where('type', $request->type);
-        }
-
-
-        $result = $query->get();
-
-
-
-        return response()->json($result);
+        return response()->json($contents);
     }
-
     public function update(Request $request, $id)
     {
+        $minDate = Carbon::now()->addMinutes(5);
         $validated = $request->validate([
             'title' => 'required|string|max:255',
             'type' => 'required|in:formation,cours,evenement',
             'access_level' => 'required|in:standard,premium',
             'content' => 'nullable|string',
             'lien' => 'nullable|url',
+            'publish_at' => ['nullable', 'date', 'after_or_equal:' . $minDate],
+
         ]);
 
         $content = Content::findOrFail($id);
