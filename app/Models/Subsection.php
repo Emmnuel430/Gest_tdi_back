@@ -17,11 +17,10 @@ class Subsection extends Model
         'image',
         'order',
         'date',
-        'prix'
+        'prix',
+        'publish_at'
     ];
     protected $touches = ['section'];
-
-
 
     public function section()
     {

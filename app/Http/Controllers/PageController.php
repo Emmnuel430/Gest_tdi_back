@@ -79,6 +79,7 @@ class PageController extends Controller
                         'prix' => $subsectionData['prix'] ?? null,
                         'image' => $subImagePath,
                         'order' => $subsectionData['order'] ?? 1,
+                        'publish_at' => $subsectionData['publish_at'] ?? null,
                     ]);
                 }
             }
@@ -228,6 +229,7 @@ class PageController extends Controller
                             'prix' => $subsectionData['prix'] ?? null,
                             'image' => $subImagePath,
                             'order' => $subsectionData['order'] ?? 1,
+                            'publish_at' => $subsectionData['publish_at'] ?? null,
                         ]);
                     } else {
                         $sub = $section->subsections()->create([
@@ -237,6 +239,7 @@ class PageController extends Controller
                             'prix' => $subsectionData['prix'] ?? null,
                             'image' => $subImagePath,
                             'order' => $subsectionData['order'] ?? 1,
+                            'publish_at' => $subsectionData['publish_at'] ?? null,
                         ]);
                     }
 
@@ -310,11 +313,22 @@ class PageController extends Controller
     // 🔎 Afficher une page par slug (pour le front)
     public function show($slug)
     {
-        $page = Page::with('sections.subsections')->where('slug', $slug)->firstOrFail();
+        $now = now();
+
+        $page = Page::with([
+            'sections.subsections' => function ($query) use ($now) {
+                $query->whereNull('publish_at')
+                    ->orWhere('publish_at', '<=', $now);
+            }
+        ])
+            ->where('slug', $slug)
+            ->firstOrFail();
+
         return response()->json($page);
     }
 
-    // 🔎 Afficher une page par id (pour le front)
+
+    // 🔎 Afficher une page par id (pour le front-office)
     public function get($id)
     {
         $page = Page::with('sections.subsections')->findOrFail($id);
