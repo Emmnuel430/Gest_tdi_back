@@ -13,6 +13,9 @@ return [
     | a conventional file to locate the various service credentials.
     |
     */
+    'paystack' => [
+        'secret_key' => env('PAYSTACK_SECRET_KEY'),
+    ],
 
     'mailgun' => [
         'domain' => env('MAILGUN_DOMAIN'),

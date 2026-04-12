@@ -1,7 +1,11 @@
 <?php
 
+use App\Http\Controllers\GalerieDossierController;
+use App\Http\Controllers\GalerieImageController;
+use App\Http\Controllers\MediaController;
+use App\Http\Controllers\PayementController;
+use App\Http\Controllers\VisitController;
 use App\Models\Subsection;
-use App\Models\Content;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\UserController;
@@ -71,8 +75,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/adherents/{id}', [AdherentController::class, 'show']);
     Route::put('/adherents/{id}', [AdherentController::class, 'update']);
 
-
-
     // Contents
     Route::prefix('contents')->group(function () {
         Route::get('/', [ContentController::class, 'index']);
@@ -81,6 +83,65 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::put('{id}', [ContentController::class, 'update']);
         Route::delete('{id}', [ContentController::class, 'destroy']);
     });
+
+    // Dossiers
+    Route::prefix('galerie/dossiers')->group(function () {
+
+        Route::get('/', [GalerieDossierController::class, 'index']);
+        Route::get('{id}', [GalerieDossierController::class, 'show']);
+        Route::post('/', [GalerieDossierController::class, 'store']);
+        Route::delete('/', [GalerieDossierController::class, 'deleteMultiple']);
+        Route::put('{id}', [GalerieDossierController::class, 'update']);
+        Route::delete('{id}', [GalerieDossierController::class, 'delete']);
+
+        // 👁 toggle visibilité
+        Route::patch('{id}/toggle', [GalerieDossierController::class, 'toggleDossier']);
+    });
+
+    // Images
+    Route::prefix('galerie/images')->group(function () {
+
+        // upload (single ou multiple) -> Attacher au dossier
+        Route::post('/attach', [GalerieImageController::class, 'attach']);
+
+        // list par dossier
+        Route::get('/dossier/{dossierId}', [GalerieImageController::class, 'getImagesByDossier']);
+
+        // update (titre, visibilité)
+        Route::put('{id}', [GalerieImageController::class, 'update']);
+
+        // delete (retirer du dossier)
+        Route::delete('{id}', [GalerieImageController::class, 'delete']);
+        Route::delete('/', [GalerieImageController::class, 'deleteMultiple']);
+
+        // reorder
+        Route::post('reorder', [GalerieImageController::class, 'reorderImages']);
+
+        // toggle visibilité
+        Route::patch('{id}/toggle', [GalerieImageController::class, 'toggle']);
+    });
+
+    // Media
+    Route::prefix('media')->group(function () {
+
+        // list globale
+        Route::get('/', [MediaController::class, 'listMedia']);
+
+        // supprimer (safe)
+        Route::delete('{id}', [MediaController::class, 'deleteMedia']);
+
+        // supprimer forcé
+        Route::delete('{id}/force', [MediaController::class, 'forceDeleteMedia']);
+
+        // Upload (drag & drop)
+        Route::post('/', [MediaController::class, 'store']);
+    });
+
+    Route::prefix('visits')->group(function () {
+        Route::get('/stats', [VisitController::class, 'stats']);
+        Route::get('/chart', [VisitController::class, 'chart']);
+    });
+
 });
 Route::post('/adherents', [AdherentController::class, 'store']);
 Route::post('/prayer-requests', [PrayerRequestController::class, 'store']);
@@ -97,3 +158,9 @@ Route::get('/page/{id}', [PageController::class, 'get']);
 Route::get('/pages/{slug}', [PageController::class, 'show']);
 Route::get('/ads', [LayoutController::class, 'index']);        // Liste tous
 Route::get('/ads/{id}', [LayoutController::class, 'show']);     // Voir un
+
+Route::post('/track', [VisitController::class, 'track']);
+
+Route::post('/payments/initiate', [PayementController::class, 'initiate']);
+Route::get('/payments/verify/{reference}', [PayementController::class, 'verify']);
+Route::post('/payments/webhook', [PayementController::class, 'webhook']);

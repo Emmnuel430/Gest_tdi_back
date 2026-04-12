@@ -16,7 +16,6 @@ return [
     */
 
     'name' => env('APP_NAME', 'Laravel'),
-
     /*
     |--------------------------------------------------------------------------
     | Application Environment
@@ -55,7 +54,7 @@ return [
     */
 
     'url' => env('APP_URL', 'http://localhost'),
-
+    'frontend_url' => env('FRONTEND_URL'),
     'asset_url' => env('ASSET_URL'),
 
     /*

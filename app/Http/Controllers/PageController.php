@@ -33,14 +33,29 @@ class PageController extends Controller
 
         try {
             // Création de la page sans l'image principale
+            // 🧠 Gestion de l'ordre
+            $maxOrder = Page::max('order') ?? 0;
+
+            // Nettoyage + sécurisation
+            $order = (int) $request->order;
+
+            // Clamp (très important)
+            $order = max(1, min($order ?: $maxOrder + 1, $maxOrder + 1));
+
+            if ($order <= $maxOrder) {
+                Page::where('order', '>=', $order)->increment('order');
+            }
+
+            // Création page
             $page = Page::create([
                 'title' => $request->title,
                 'subtitle' => $request->subtitle,
                 'template' => $request->template,
-                'main_image' => null, // temporaire
+                'main_image' => null,
                 'slug' => Str::slug($request->title),
-                'order' => $request->order ?? null,
+                'order' => $order,
             ]);
+
 
             $pageId = $page->id;
 

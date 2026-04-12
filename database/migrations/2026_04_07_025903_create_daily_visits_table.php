@@ -12,8 +12,11 @@ return new class extends Migration {
      */
     public function up()
     {
-        Schema::table('subsections', function (Blueprint $table) {
-            $table->timestamp('publish_at')->nullable()->after('order'); // Date de publication programmée
+        Schema::create('daily_visits', function (Blueprint $table) {
+            $table->id();
+            $table->date('date')->unique();
+            $table->unsignedInteger('count')->default(0);
+            $table->timestamps();
         });
     }
 
@@ -24,8 +27,6 @@ return new class extends Migration {
      */
     public function down()
     {
-        Schema::table('subsections', function (Blueprint $table) {
-            $table->dropColumn(['publish_at']);
-        });
+        Schema::dropIfExists('daily_visits');
     }
 };

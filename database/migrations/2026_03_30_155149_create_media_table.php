@@ -12,8 +12,13 @@ return new class extends Migration {
      */
     public function up()
     {
-        Schema::table('contents', function (Blueprint $table) {
-            $table->timestamp('publish_at')->nullable()->after('lien'); // Date de publication programmée
+        Schema::create('media', function (Blueprint $table) {
+            $table->id();
+            $table->string('file_name');
+            $table->string('file_path');
+            $table->string('file_type')->nullable(); // image/jpeg etc
+            $table->string('hash')->unique(); // éviter doublons
+            $table->timestamps();
         });
     }
 
@@ -24,8 +29,6 @@ return new class extends Migration {
      */
     public function down()
     {
-        Schema::table('contents', function (Blueprint $table) {
-            $table->dropColumn(['publish_at']);
-        });
+        Schema::dropIfExists('media');
     }
 };
