@@ -89,10 +89,12 @@ class PageController extends Controller
 
                     $section->subsections()->create([
                         'title' => $subsectionData['title'],
+                        'type' => $subsectionData['type'],
                         'content' => $cleanHtml,
                         'date' => $subsectionData['date'] === 'null' || empty($subsectionData['date']) ? null : $subsectionData['date'],
                         'prix' => $subsectionData['prix'] ?? null,
                         'image' => $subImagePath,
+                        'link' => $subsectionData['link'],
                         'order' => $subsectionData['order'] ?? 1,
                         'publish_at' => $subsectionData['publish_at'] ?? null,
                     ]);
@@ -239,20 +241,24 @@ class PageController extends Controller
                     if ($sub) {
                         $sub->update([
                             'title' => $subsectionData['title'],
+                            'type' => $subsectionData['type'],
                             'content' => $cleanHtml,
                             'date' => empty($subsectionData['date']) || $subsectionData['date'] === 'null' ? null : $subsectionData['date'],
                             'prix' => $subsectionData['prix'] ?? null,
                             'image' => $subImagePath,
+                            'link' => $subsectionData['link'],
                             'order' => $subsectionData['order'] ?? 1,
                             'publish_at' => $subsectionData['publish_at'] ?? null,
                         ]);
                     } else {
                         $sub = $section->subsections()->create([
                             'title' => $subsectionData['title'],
+                            'type' => $subsectionData['type'],
                             'content' => $cleanHtml,
                             'date' => empty($subsectionData['date']) || $subsectionData['date'] === 'null' ? null : $subsectionData['date'],
                             'prix' => $subsectionData['prix'] ?? null,
                             'image' => $subImagePath,
+                            'link' => $subsectionData['link'],
                             'order' => $subsectionData['order'] ?? 1,
                             'publish_at' => $subsectionData['publish_at'] ?? null,
                         ]);

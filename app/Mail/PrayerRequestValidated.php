@@ -20,7 +20,7 @@ class PrayerRequestValidated extends Mailable
     public function build()
     {
         return $this
-            ->subject("Votre demande de prière a été acceptée")
+            ->subject("Votre demande de prière a été reçue")
             ->view('emails.prayers.validated')
             ->text('emails.prayers.validated_plain');
     }

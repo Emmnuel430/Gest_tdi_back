@@ -1,10 +1,11 @@
 Shalom {{ $prayer->prenom }},
 
-Votre demande de prière intitulée "{{ $prayer->objet }}" a été validée.
+Nous avons bien reçu votre demande de prière intitulée "{{ $prayer->objet }}".
 
-Un membre de notre communauté priera pour votre intention.
+Soyez assuré qu’un rabbin priera pour vous avec attention et sincérité.
 
-Accédez à la plateforme : {{ config('app.members_url') }}
+Dans ces moments, sachez que vous n’êtes pas seul.
+Que la paix, la force et la lumière vous accompagnent.
 
 Shalom,
 {{ config('app.name') }}

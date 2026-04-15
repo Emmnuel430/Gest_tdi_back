@@ -14,8 +14,6 @@ class PrayerRequest extends Model
         'email',
         'objet',
         'message',
-        'moyen_paiement',
-        'preuve_paiement',
         'is_validated',
     ];
 }

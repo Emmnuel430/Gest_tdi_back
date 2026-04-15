@@ -12,14 +12,12 @@ return new class extends Migration {
      */
     public function up()
     {
-        Schema::create('prayer_requests', function (Blueprint $table) {
-            $table->id();
-            $table->string('nom');
-            $table->string('prenom');
-            $table->string('email');
-            $table->string('objet');
-            $table->text('message');
-            $table->timestamps();
+        Schema::table('subsections', function (Blueprint $table) {
+            $table->enum('type', ['classique', 'produit', 'ressource'])
+                ->default('classique')
+                ->after('title');
+
+            $table->string('link')->nullable()->after('image');
         });
     }
 
@@ -30,6 +28,8 @@ return new class extends Migration {
      */
     public function down()
     {
-        Schema::dropIfExists('prayer_requests');
+        Schema::table('subsections', function (Blueprint $table) {
+            $table->dropColumn(['type', 'link']);
+        });
     }
 };

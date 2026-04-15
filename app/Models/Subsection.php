@@ -13,8 +13,10 @@ class Subsection extends Model
     protected $fillable = [
         'section_id',
         'title',
+        'type',
         'content',
         'image',
+        'link',
         'order',
         'date',
         'prix',
