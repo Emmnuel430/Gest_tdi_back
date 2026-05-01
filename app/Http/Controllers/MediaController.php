@@ -28,7 +28,7 @@ class MediaController extends Controller
                 ], 400);
             }
 
-            // 🔥 supprimer relation restante
+            // supprimer relation restante
             $media->galerieImages()->delete();
 
             // 🧹 supprimer fichier physique
@@ -53,36 +53,40 @@ class MediaController extends Controller
             ], 500);
         }
     }
-
-    public function forceDeleteMedia($id)
+    public function forceDeleteMedia(Request $request)
     {
+        $request->validate([
+            'ids' => 'required|array',
+            'ids.*' => 'exists:media,id', // On vérifie que les IDs existent
+        ]);
+
         DB::beginTransaction();
 
         try {
+            // 1. Récupérer tous les médias pour avoir accès aux chemins de fichiers
+            $medias = Media::whereIn('id', $request->ids)->get();
 
-            $media = Media::findOrFail($id);
+            foreach ($medias as $media) {
+                // 2. Supprimer les relations (galerie_images)
+                $media->galerieImages()->delete();
 
-            // 🔥 Supprimer toutes les relations
-            $media->galerieImages()->delete();
+                // 3. Supprimer le fichier physique
+                Storage::disk('public')->delete($media->file_path);
 
-            // 🧹 supprimer fichier
-            Storage::disk('public')->delete($media->file_path);
-
-            // 🗑 supprimer media
-            $media->delete();
+                // 4. Supprimer l'entrée en base (forceDelete si SoftDelete utilisé)
+                $media->delete();
+            }
 
             DB::commit();
 
             return response()->json([
-                'message' => 'Media supprimé avec toutes ses relations',
+                'message' => count($request->ids) . ' média(s) supprimé(s) avec succès',
             ]);
 
         } catch (\Exception $e) {
-
             DB::rollBack();
-
             return response()->json([
-                'error' => 'Erreur suppression forcée',
+                'error' => 'Erreur lors de la suppression groupée',
                 'message' => $e->getMessage(),
             ], 500);
         }

@@ -20,10 +20,10 @@ return new class extends Migration {
             $table->string('contact')->nullable();
             $table->string('pseudo')->nullable();
             $table->string('password')->nullable();
-            $table->string('moyen_paiement');
-            $table->string('preuve_paiement');
-            $table->enum('statut', ['standard', 'premium']);
-            $table->boolean('is_validated')->default(false);
+
+            $table->boolean('is_active')->default(false);
+            $table->boolean('profile_completed')->default(false); // important UX
+
             $table->timestamps();
         });
     }

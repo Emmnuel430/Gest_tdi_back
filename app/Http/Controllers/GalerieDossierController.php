@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\GalerieDossierResource;
 use App\Models\GalerieDossier;
 use Illuminate\Http\Request;
 
@@ -27,7 +28,7 @@ class GalerieDossierController extends Controller
             'description' => 'nullable|string',
         ]);
 
-        // 🔥 générer nom unique
+        // générer nom unique
         $nom = $this->generateUniqueName($request->nom);
 
         $dossier = GalerieDossier::create([
@@ -45,6 +46,18 @@ class GalerieDossierController extends Controller
         $dossiers = GalerieDossier::withCount('images')->latest()->get();
 
         return response()->json($dossiers);
+    }
+
+    public function indexPublic()
+    {
+        $dossiers = GalerieDossier::with([
+            'images.media'
+        ])
+            ->withCount('images')
+            ->latest()
+            ->get();
+
+        return GalerieDossierResource::collection($dossiers);
     }
 
     public function show($id)

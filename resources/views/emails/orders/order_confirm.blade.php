@@ -81,7 +81,7 @@
                     <!-- TOTAL -->
                     <tr>
                         <td style="text-align:right; padding-top:15px; font-size:16px;">
-                            <strong>Total : {{ number_format($order->amount, 0, ',', ' ') }} FCFA</strong>
+                            <strong>Total : {{ number_format($transaction->amount, 0, ',', ' ') }} FCFA</strong>
                         </td>
                     </tr>
 
@@ -89,7 +89,7 @@
                     @if(!empty($resources))
                         <tr>
                             <td style="padding-top:25px;">
-                                <h3 style="color:#2d6cdf;">📚 Vos accès</h3>
+                                <h3 style="color:#2d6cdf;">📚 Vos ebooks</h3>
 
                                 @foreach($resources as $res)
                                     <div style="margin-bottom:15px; padding:10px; background:#f9f9f9; border-radius:6px;">

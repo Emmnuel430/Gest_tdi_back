@@ -5,20 +5,26 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-class PrayerRequest extends Model
+class Tsedaka extends Model
 {
     use HasFactory;
+
     protected $fillable = [
+        'reference',
         'nom',
         'prenom',
         'email',
-        'objet',
+        'montant',
+        'anonymous',
         'message',
-        'is_validated',
     ];
 
-    public function transactions()
+    protected $casts = [
+        'anonymous' => 'boolean',
+    ];
+
+    public function transaction()
     {
-        return $this->morphMany(Transaction::class, 'transactionable');
+        return $this->morphOne(Transaction::class, 'transactionable');
     }
 }

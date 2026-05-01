@@ -1,7 +1,6 @@
 <?php
 
 namespace App\Mail;
-use App\Models\Order;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
@@ -12,11 +11,13 @@ class OrderConfirm extends Mailable
 
     public $order;
     public $resources;
+    public $transaction;
 
-    public function __construct($order, $resources = [])
+    public function __construct($order, $resources = [], $transaction)
     {
         $this->order = $order;
         $this->resources = $resources;
+        $this->transaction = $transaction;
     }
 
     public function build()

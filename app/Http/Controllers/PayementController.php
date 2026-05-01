@@ -1,16 +1,17 @@
 <?php
 namespace App\Http\Controllers;
 
-use App\Mail\OrderConfirm;
-use App\Mail\OrderResourceSend;
-use App\Mail\PrayerRequestValidated;
-use App\Models\Order;
-use App\Models\PrayerRequest;
-use App\Models\Subsection;
+use App\Actions\HandleCartPayment;
+use App\Actions\HandlePrayerRequest;
+use App\Actions\HandleSubscription;
+use App\Actions\HandleTsedaka;
+use App\Models\Adherent;
+use App\Models\Transaction;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 class PayementController extends Controller
@@ -20,198 +21,173 @@ class PayementController extends Controller
         $request->validate([
             'email' => 'required|email',
             'totalPrice' => 'required|numeric',
-            'type' => 'required|string|in:cart,prayer-request',
+            'type' => 'required|string|in:cart,prayer-request,subscription,tsedaka',
 
             // uniquement si cart
             'cart' => 'required_if:type,cart|array',
 
             // uniquement si prière
             'objet' => 'required_if:type,prayer-request|string',
-            'message' => 'required_if:type,prayer-request|string',
+
+            // subscription
+            'subscription_plan_id' => 'required_if:type,subscription|exists:subscription_plans,id',
+            'password' => 'required_if:type,subscription|string|min:6',
+
+            'message' => 'nullable|string',
+            'montant' => 'required_if:type,tsedaka|numeric|min:100',
+            'anonymous' => 'required_if:type,tsedaka|boolean',
         ]);
-        $reference = Str::uuid()->toString();
 
-        $customFields = match ($request->type) {
-            'cart' => [
-                'cart_details' => $request->cart,
-            ],
-            'prayer-request' => [
-                'objet' => $request->objet,
-                'message' => $request->message,
-            ],
-            default => [],
-        };
+        try {
+            return DB::transaction(function () use ($request) {
 
-        // Log::info('Custom fields', $customFields);
+                // 1. Vérif email uniquement pour subscription
+                if ($request->type === 'subscription') {
+                    $exists = Adherent::where('email', $request->email)->exists();
 
-        $metadata = [
-            'nom' => $request->nom,
-            'prenom' => $request->prenom,
-            'numero' => $request->numero,
-            'type' => $request->type,
-            'commune' => $request->commune,
-            'custom_fields' => $customFields,
-        ];
+                    if ($exists) {
+                        return response()->json([
+                            'message' => 'Un compte avec cet email existe déjà.'
+                        ], 422);
+                    }
+                }
 
-        if ($request->type === 'cart') {
-            $metadata['total_items'] = $request->totalItems;
+                // 2. Génération référence
+                $reference = Str::uuid()->toString();
+
+                // 3. Custom fields
+                $customFields = match ($request->type) {
+                    'cart' => [
+                        'cart_details' => $request->cart,
+                    ],
+                    'prayer-request' => [
+                        'objet' => $request->objet,
+                        'message' => $request->message,
+                    ],
+                    'subscription' => [
+                        'subscription_plan_id' => $request->subscription_plan_id,
+                        'payment_step' => $request->payment_step,
+                        'payment_index' => $request->payment_index,
+                    ],
+                    'tsedaka' => [
+                        'message' => $request->message,
+                        'montant' => $request->montant,
+                        'anonymous' => $request->anonymous,
+                    ],
+                    default => [],
+                };
+
+                // 4. Metadata
+                $metadata = [
+                    'nom' => $request->anonymous ? 'Anonyme' : $request->nom,
+                    'prenom' => $request->anonymous ? 'Donateur' : $request->prenom,
+                    'email' => $request->email,
+                    'numero' => $request->numero,
+                    'type' => $request->type,
+
+                    // attention sécurité
+                    'password' => $request->password ? bcrypt($request->password) : null,
+                    'custom_fields' => $customFields,
+                ];
+
+                if ($request->type === 'cart') {
+                    $metadata['total_items'] = $request->totalItems;
+                    $metadata['commune'] = $request->commune;
+                }
+
+                // 5. Appel Paystack
+                $response = Http::withToken(config('services.paystack.secret_key'))
+                    ->post('https://api.paystack.co/transaction/initialize', [
+                        'email' => $request->email,
+                        'amount' => $request->totalPrice * 100,
+                        'currency' => 'XOF',
+                        'reference' => $reference,
+                        'callback_url' => config('app.frontend_url') . '/payment/callback',
+                        'metadata' => $metadata
+                    ]);
+
+                if (!$response->successful()) {
+                    throw new \Exception('Erreur Paystack');
+                }
+
+                return response()->json([
+                    'authorization_url' => $response['data']['authorization_url'],
+                    'reference' => $reference,
+                ]);
+            });
+
+        } catch (\Throwable $e) {
+            \Log::error('Payment initiate error: ' . $e->getMessage());
+
+            return response()->json([
+                'message' => 'Erreur lors de l’initiation du paiement'
+            ], 500);
         }
-
-        $response = Http::withToken(config('services.paystack.secret_key'))
-            ->post('https://api.paystack.co/transaction/initialize', [
-                'email' => $request->email,
-                'amount' => $request->totalPrice * 100,
-                'currency' => 'XOF',
-                'reference' => $reference,
-                'callback_url' => config('app.frontend_url') . '/payment/callback',
-                'metadata' => $metadata
-            ]);
-
-
-        if (!$response->successful()) {
-            return response()->json(['error' => 'Erreur Paystack'], 500);
-        }
-
-        return response()->json([
-            'authorization_url' => $response['data']['authorization_url'],
-            'reference' => $reference,
-        ]);
     }
 
     public function verify($reference)
     {
-        $response = Http::withToken(config('services.paystack.secret_key'))
-            ->get("https://api.paystack.co/transaction/verify/{$reference}");
+        // 🔒 1. Verrou de sécurité (évite les race conditions)
+        return Cache::lock("payment_{$reference}", 10)->get(function () use ($reference) {
 
-        if (!$response->successful()) {
-            return response()->json(['error' => 'Verification failed'], 500);
-        }
+            if (Transaction::where('reference', $reference)->exists()) {
+                return response()->json(['message' => 'Déjà traité', 'status' => 'ok']);
+            }
 
-        $body = $response->json();
+            try {
+                $response = Http::withToken(config('services.paystack.secret_key'))
+                    ->get("https://api.paystack.co/transaction/verify/{$reference}");
 
-        if (!$body['status']) {
-            return response()->json(['error' => 'Transaction invalide'], 400);
-        }
-
-        $data = $body['data'];
-
-        if ($data['status'] !== 'success') {
-            return response()->json(['error' => 'Paiement non validé'], 400);
-        }
-
-        // 🔒 Vérifier si déjà traité
-        $existingOrder = Order::where('reference', $reference)->first();
-
-        if ($existingOrder) {
-            return response()->json([
-                'message' => 'Déjà traité',
-                'reference' => $reference,
-                'status' => 'ok'
-            ]);
-        }
-
-        $metadata = $data['metadata'] ?? [];
-        $customFields = $metadata['custom_fields'] ?? [];
-
-        // Log::info('Verify Custom fields', $customFields);
-
-        $type = in_array($metadata['type'] ?? null, ['cart', 'prayer-request', 'subscription'])
-            ? $metadata['type']
-            : 'unknown';
-
-        $order = Order::create([
-            'reference' => $data['reference'],
-            'amount' => $data['amount'] / 100,
-            'currency' => $data['currency'],
-            'status' => 'paid',
-
-            // Champs Identité
-            'nom' => $metadata['nom'] ?? "Client N/A",
-            'email' => $data['customer']['email'] ?? null,
-            'numero' => $metadata['numero'] ?? null,
-
-            // Type pour la logique métier (Tri/Scope)
-            'type' => $type,
-
-            // Champs spécifiques (optionnels en colonnes pour stats rapides)
-            'commune' => $metadata['commune'] ?? null,
-            'total_items' => $metadata['total_items'] ?? null,
-
-            // On stocke TOUT le bloc custom_fields dans la colonne JSON metadata
-            'metadata' => $customFields,
-        ]);
-
-        // 🎯 Actions métier
-        switch ($type) {
-            case 'cart':
-
-                $resources = [];
-
-                foreach ($customFields['cart_details'] ?? [] as $item) {
-                    $subsection = Subsection::find($item['product_id']);
-
-                    if (!$subsection)
-                        continue;
-
-                    // 🎯 Ressource
-                    if ($subsection->type === 'ressource' && $subsection->link) {
-                        $resources[] = [
-                            'title' => $subsection->title,
-                            'link' => $subsection->link,
-                        ];
-                    }
+                if (!$response->successful() || !$response->json('status')) {
+                    return response()->json(['error' => 'Échec de vérification Paystack'], 400);
                 }
 
-                try {
-                    Mail::to($order->email)->send(
-                        new OrderConfirm($order, $resources) // UN SEUL MAIL
-                    );
-                } catch (\Exception $e) {
-                    Log::error('Erreur envoi mail : ' . $e->getMessage());
-                    return response()->json([
-                        'message' => 'Commande validée, mais erreur lors de l’envoi du mail'
-                    ], 200);
+                $data = $response->json('data');
+
+                if ($data['status'] !== 'success') {
+                    return response()->json(['error' => 'Paiement non validé'], 400);
                 }
 
-                break;
+                return DB::transaction(function () use ($data) {
+                    $metadata = $data['metadata'] ?? [];
+                    $type = $metadata['type'] ?? 'unknown';
 
-            case 'prayer-request':
-                $already = PrayerRequest::where('email', $data['customer']['email'])
-                    ->where('objet', $customFields['objet'] ?? null)
-                    ->latest()
-                    ->first();
-
-                if (!$already) {
-                    $prayer = PrayerRequest::create([
-                        'nom' => $metadata['nom'] ?? null,
-                        'prenom' => $metadata['prenom'] ?? null,
+                    // Création de la transaction de base
+                    $transaction = Transaction::create([
+                        'reference' => $data['reference'],
+                        'amount' => $data['amount'] / 100,
+                        'currency' => $data['currency'],
+                        'status' => 'success',
+                        'nom' => trim(
+                            ($metadata['nom'] ?? '') . ' ' . ($metadata['prenom'] ?? '')
+                        ) ?: 'Client N/A',
                         'email' => $data['customer']['email'] ?? null,
-                        'objet' => $customFields['objet'] ?? null,
-                        'message' => $customFields['message'] ?? null,
-                        'is_validated' => true,
+                        'numero' => $metadata['numero'] ?? null,
+                        'type' => $type,
                     ]);
 
-                    try {
-                        Mail::to($prayer->email)->send(new PrayerRequestValidated($prayer));
-                    } catch (\Exception $e) {
-                        Log::error('Erreur envoi mail : ' . $e->getMessage());
-                        return response()->json(['message' => 'Demande validée, mais erreur mail'], 200);
+                    // Mapping des actions
+                    $actions = [
+                        'cart' => HandleCartPayment::class,
+                        'prayer-request' => HandlePrayerRequest::class,
+                        'subscription' => HandleSubscription::class,
+                        'tsedaka' => HandleTsedaka::class,
+                    ];
+
+                    if (array_key_exists($type, $actions)) {
+                        app($actions[$type])->execute($transaction, $metadata);
                     }
-                }
 
-                break;
-            case 'subscription':
-                // 👉 activer abonnement
-                // Subscription::create([...]);
-                break;
-        }
+                    return response()->json(['status' => 'ok', 'reference' => $data['reference']]);
+                });
 
-        return response()->json([
-            'message' => 'Paiement confirmé',
-            'reference' => $reference,
-            'status' => 'ok'
-        ]);
+            } catch (\Exception $e) {
+                Log::error("Erreur Paystack: " . $e->getMessage());
+                return response()->json(['error' => 'Erreur serveur'], 500);
+            }
+        });
     }
+
 
     // public function webhook(Request $request)
     // {
@@ -235,7 +211,7 @@ class PayementController extends Controller
 
     //     $data = $event['data'];
 
-    //     // 🔥 Sécurité minimale
+    //     // Sécurité minimale
     //     if ($data['status'] !== 'success') {
     //         return response()->json(['status' => 'not success']);
     //     }
@@ -244,16 +220,16 @@ class PayementController extends Controller
     //         return response()->json(['status' => 'invalid currency']);
     //     }
 
-    //     // 🔥 Anti doublon
+    //     // Anti doublon
     //     $existing = Order::where('reference', $data['reference'])->first();
     //     if ($existing) {
     //         return response()->json(['status' => 'already processed']);
     //     }
 
-    //     // 🔥 Récupération metadata
+    //     // Récupération metadata
     //     $metadata = $data['metadata'] ?? [];
 
-    //     // 🔥 Sécurité supplémentaire (optionnelle mais propre)
+    //     // Sécurité supplémentaire (optionnelle mais propre)
     //     if (!isset($metadata['type'])) {
     //         return response()->json(['status' => 'missing type']);
     //     }

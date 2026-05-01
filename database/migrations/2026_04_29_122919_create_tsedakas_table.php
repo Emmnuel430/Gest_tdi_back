@@ -12,21 +12,22 @@ return new class extends Migration {
      */
     public function up()
     {
-        Schema::create('orders', function (Blueprint $table) {
+        Schema::create('tsedakas', function (Blueprint $table) {
             $table->id();
+
             $table->string('reference')->unique();
 
-            // 👤 Client
-            $table->string('nom');
+            // infos donateur
+            $table->string('nom')->nullable();
+            $table->string('prenom')->nullable();
             $table->string('email');
-            $table->string('numero')->nullable();
 
-            // 🏙️ spécifique panier
-            $table->string('commune')->nullable();
-            $table->integer('total_items')->nullable();
+            // don
+            $table->integer('montant');
+            $table->boolean('anonymous')->default(false);
 
-            // 📦 Données dynamiques
-            $table->json('metadata')->nullable();
+            // optionnel
+            $table->text('message')->nullable();
 
             $table->timestamps();
         });
@@ -39,6 +40,6 @@ return new class extends Migration {
      */
     public function down()
     {
-        Schema::dropIfExists('orders');
+        Schema::dropIfExists('tsedakas');
     }
 };

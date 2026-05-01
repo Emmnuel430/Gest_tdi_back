@@ -3,7 +3,11 @@
 use App\Http\Controllers\GalerieDossierController;
 use App\Http\Controllers\GalerieImageController;
 use App\Http\Controllers\MediaController;
+use App\Http\Controllers\OrderController;
 use App\Http\Controllers\PayementController;
+use App\Http\Controllers\SubscriptionPlanController;
+use App\Http\Controllers\TransactionController;
+use App\Http\Controllers\TsedakaController;
 use App\Http\Controllers\VisitController;
 use App\Models\Subsection;
 use Illuminate\Http\Request;
@@ -26,19 +30,20 @@ Route::post('login', [UserController::class, 'login']);
 Route::post('/adherent/login', [AdherentController::class, 'login']);
 
 Route::middleware(['auth:sanctum', 'adherent'])->group(function () {
-    Route::middleware(['auth:sanctum', 'adherent'])->get('/adherent/me', function (Request $request) {
+
+    Route::get('/adherent/me', function (Request $request) {
         return response()->json(['adherent' => $request->user()]);
     });
 
-    Route::get('/adherent/contents', [ContentController::class, 'byType']);
+    Route::get('/adherents/contents', [ContentController::class, 'byType']);
+    Route::post('/adherents/validate', [AdherentController::class, 'updateProfile']);
 
-    Route::post('/adherent/logout', function (Request $request) {
+    Route::post('/adherents/logout', function (Request $request) {
         $request->user()->currentAccessToken()->delete();
         return response()->json(['message' => 'Déconnecté avec succès']);
     });
 
-    Route::get('/adherents-public/{id}', [AdherentController::class, 'show']); // Voir un adhérent
-
+    Route::get('/adherents-public/{id}', [AdherentController::class, 'show']);
 });
 
 Route::middleware('auth:sanctum')->group(function () {
@@ -71,7 +76,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Adherents
     Route::get('/adherents', [AdherentController::class, 'index']);
     Route::delete('/adherents/{id}', [AdherentController::class, 'destroy']); // Supprimer un adhérent
-    Route::post('/adherents/{id}/validate', [AdherentController::class, 'validateAdherent']);
+    Route::patch('/adherents/{id}/toggle-validate', [AdherentController::class, 'toggleValidateAdherent']);
     Route::get('/adherents/{id}', [AdherentController::class, 'show']);
     Route::put('/adherents/{id}', [AdherentController::class, 'update']);
 
@@ -127,25 +132,47 @@ Route::middleware('auth:sanctum')->group(function () {
         // list globale
         Route::get('/', [MediaController::class, 'listMedia']);
 
+        // supprimer forcé
+        Route::delete('/force', [MediaController::class, 'forceDeleteMedia']);
         // supprimer (safe)
         Route::delete('{id}', [MediaController::class, 'deleteMedia']);
-
-        // supprimer forcé
-        Route::delete('{id}/force', [MediaController::class, 'forceDeleteMedia']);
 
         // Upload (drag & drop)
         Route::post('/', [MediaController::class, 'store']);
     });
 
+    // Visits
     Route::prefix('visits')->group(function () {
         Route::get('/stats', [VisitController::class, 'stats']);
         Route::get('/chart', [VisitController::class, 'chart']);
     });
 
-});
-Route::post('/adherents', [AdherentController::class, 'store']);
-Route::post('/prayer-requests', [PrayerRequestController::class, 'store']);
+    // Plans
+    Route::prefix('subscription-plans')->group(function () {
+        Route::get('/', [SubscriptionPlanController::class, 'index']);
+        Route::post('/', [SubscriptionPlanController::class, 'store']);
+        Route::get('{id}', [SubscriptionPlanController::class, 'show']);
+        Route::put('{id}', [SubscriptionPlanController::class, 'update']);
+        Route::delete('{id}', [SubscriptionPlanController::class, 'destroy']);
+    });
 
+    // Transactions
+    Route::prefix('transactions')->group(function () {
+        Route::get('/', [TransactionController::class, 'index']);
+        Route::patch('{id}/status', [TransactionController::class, 'changeStatus']);
+        Route::get('/stats', [TransactionController::class, 'stats']);
+    });
+
+    // Commandes
+    Route::prefix('orders')->group(function () {
+        Route::get('/', [OrderController::class, 'index']);
+        Route::patch('{id}/status', [OrderController::class, 'changeStatus']);
+    });
+
+    // Tsedakas
+    Route::get('/tsedakas', [TsedakaController::class, 'list']);
+
+});
 
 // --------------
 Route::get('/subsections/{id}', function ($id) {
@@ -159,8 +186,13 @@ Route::get('/pages/{slug}', [PageController::class, 'show']);
 Route::get('/ads', [LayoutController::class, 'index']);        // Liste tous
 Route::get('/ads/{id}', [LayoutController::class, 'show']);     // Voir un
 
+
+Route::get('/public/galerie/dossiers', [GalerieDossierController::class, 'indexPublic']);
+
 Route::post('/track', [VisitController::class, 'track']);
 
 Route::post('/payments/initiate', [PayementController::class, 'initiate']);
 Route::get('/payments/verify/{reference}', [PayementController::class, 'verify']);
 Route::post('/payments/webhook', [PayementController::class, 'webhook']);
+
+Route::get('/public/subscription-plans', [SubscriptionPlanController::class, 'indexPublic']);

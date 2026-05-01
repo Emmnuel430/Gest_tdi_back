@@ -12,12 +12,12 @@ return new class extends Migration {
      */
     public function up()
     {
-        Schema::table('adherents', function (Blueprint $table) {
-            $table->enum('abonnement_type', ['hebdomadaire', 'mensuel', 'annuel'])->nullable()->after('statut');
-            $table->date('abonnement_expires_at')->nullable()->after('abonnement_type');
+        Schema::table('orders', function (Blueprint $table) {
+            $table->enum('status', ['pending', 'delivered', 'canceled'])
+                ->default('pending')
+                ->after('metadata');
         });
     }
-
 
     /**
      * Reverse the migrations.
@@ -26,8 +26,9 @@ return new class extends Migration {
      */
     public function down()
     {
-        Schema::table('adherents', function (Blueprint $table) {
-            //
+        Schema::table('orders', function (Blueprint $table) {
+            $table->dropColumn('status');
+
         });
     }
 };

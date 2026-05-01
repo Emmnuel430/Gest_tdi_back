@@ -11,19 +11,21 @@ class Order extends Model
 
     protected $fillable = [
         'reference',
-        'amount',
-        'currency',
-        'status',
         'nom',
         'email',
         'numero',
-        'type',
         'metadata',
         'commune',
         'total_items',
+        'status'
     ];
 
     protected $casts = [
         'metadata' => 'array',
     ];
+
+    public function transactions()
+    {
+        return $this->morphMany(Transaction::class, 'transactionable');
+    }
 }

@@ -9,7 +9,7 @@ Récapitulatif :
     FCFA
 @endforeach
 
-Total : {{ number_format($order->amount, 0, ',', ' ') }} FCFA
+Total : {{ number_format($transaction->amount, 0, ',', ' ') }} FCFA
 
 Vous serez contacté pour la livraison dans un délai de 1 à 3 jours maximum.
 Les frais de livraison sont à votre charge.

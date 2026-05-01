@@ -16,9 +16,13 @@ return new class extends Migration {
             $table->id();
             $table->string('title');
             $table->enum('type', ['formation', 'cours', 'evenement']);
-            $table->enum('access_level', ['standard', 'premium'])->default('standard');
             $table->text('content')->nullable();
             $table->string('lien')->nullable();
+
+            $table->timestamp('publish_at')->nullable();
+
+            $table->boolean('is_public')->default(false);
+            $table->boolean('is_student_only')->default(false);
             $table->timestamps();
         });
     }
