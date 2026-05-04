@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 
 use App\Http\Requests\StoreProfileRequest;
+use App\Http\Resources\AdherentResource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -82,7 +83,7 @@ class AdherentController extends Controller
 
     public function show($id)
     {
-        $adherent = Adherent::findOrFail($id);
+        $adherent = Adherent::with('profile')->findOrFail($id);
         return response()->json(['data' => $adherent]);
     }
 
@@ -108,36 +109,8 @@ class AdherentController extends Controller
 
         return response()->json([
             'token' => $token,
-            'adherent' => [
-                'id' => $adherent->id,
-                'nom' => $adherent->nom,
-                'prenom' => $adherent->prenom,
-                'email' => $adherent->email,
-                'contact' => $adherent->contact,
-                'pseudo' => $adherent->pseudo,
-                'profile_completed' => $adherent->profile_completed ? "true" : "false",
+            'adherent' => new AdherentResource($adherent)
 
-                'subscription' => $adherent->activeSubscription ? [
-                    'id' => $adherent->activeSubscription->id,
-                    'status' => $adherent->activeSubscription->status,
-                    'expires_at' => $adherent->activeSubscription->ends_at,
-                    "remaining_months" => $adherent->activeSubscription->remaining_months,
-
-
-                    'plan' => $adherent->activeSubscription->plan ? [
-                        'id' => $adherent->activeSubscription->plan->id,
-                        'name' => $adherent->activeSubscription->plan->name,
-                        "billing_type" => $adherent->activeSubscription->plan->billing_type,
-                        'duration' => $adherent->activeSubscription->plan->duration,
-                        "is_student_plan" => $adherent->activeSubscription->plan->is_student_plan ? "true" : "false",
-                        'advantages' => $adherent->activeSubscription->plan->advantages,
-                        'total_payments' => $adherent->activeSubscription->plan->total_payments,
-                        'registration_fee' => $adherent->activeSubscription->plan->registration_fee,
-                        'monthly_price' => $adherent->activeSubscription->plan->monthly_price,
-                    ] : null,
-
-                ] : null,
-            ]
         ]);
     }
 
@@ -167,6 +140,15 @@ class AdherentController extends Controller
             'message' => 'Progression enregistrée',
             'profile_completed' => $adherent->profile_completed,
             'profile' => $adherent->profile
+        ]);
+    }
+
+    public function me(Request $request)
+    {
+        $adherent = $request->user()->load(['profile', 'activeSubscription.plan']);
+
+        return response()->json([
+            'adherent' => new AdherentResource($adherent)
         ]);
     }
 

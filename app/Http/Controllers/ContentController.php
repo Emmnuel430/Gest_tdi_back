@@ -165,51 +165,103 @@ class ContentController extends Controller
     public function byType(Request $request)
     {
         $adherent = auth()->user();
-        $now = now();
-        $type = $request->type ?? 'all';
+        $type = $request->query('type', 'all');
 
+        // Log::info('=== START ===', [
+        //     'user_id' => $adherent->id,
+        //     'type' => $type,
+        // ]);
 
-        $cacheKey = "contents_user_{$adherent->id}_type_{$type}";
+        return (function () use ($adherent, $request, $type) {
 
-        $contents = Cache::tags(["user_contents_{$adherent->id}"])->remember($cacheKey, 3600 * 24, function () use ($adherent, $request, $now) {
-            // récupérer les plans actifs du user
-            $activePlanIds = $adherent->activeSubscriptions()
-                ->pluck('subscription_plan_id');
+            $subscription = $adherent->activeSubscription()->with('plan')->first();
 
-            // check si l'un de ces plans est  un plan étudiant
-            $isAStudentPlan = SubscriptionPlan::whereIn('id', $activePlanIds)
-                ->where('is_student_plan', true)
-                ->exists();
+            // Log::info('Subscription', [
+            //     'exists' => !!$subscription,
+            //     'data' => $subscription
+            // ]);
 
-            return Content::with('plans')
-                ->where(function ($query) use ($activePlanIds, $isAStudentPlan) {
-                    // marqué comme public
-                    $query->where('is_public', true)
+            $activePlanIds = $subscription ? [$subscription->subscription_plan_id] : [];
 
-                        // réservé aux étudiants
-                        ->orWhere(function ($q) use ($isAStudentPlan) {
-                        if ($isAStudentPlan) {
-                            $q->where('is_student_only', true);
-                        }
-                    })
+            // Log::info('Active Plans', [
+            //     'ids' => $activePlanIds
+            // ]);
 
-                        // explicitement lié à l'un des plans actifs de l'utilisateur
-                        ->orWhereHas('plans', function ($q) use ($activePlanIds) {
-                        $q->whereIn('subscription_plan_id', $activePlanIds);
+            $isAStudentPlan = ($subscription && $subscription->plan)
+                ? $subscription->plan->is_student_plan
+                : false;
+
+            // Log::info('Is Student Plan', [
+            //     'value' => $isAStudentPlan
+            // ]);
+
+            // TEST DB DIRECT
+            // Log::info('TOTAL contents', [
+            //     'count' => Content::count()
+            // ]);
+
+            // Log::info('TOTAL cours', [
+            //     'count' => Content::where('type', 'cours')->count()
+            // ]);
+
+            $query = Content::with('plans');
+
+            // 🔍 AVANT FILTRE
+            // Log::info('Avant filtres', [
+            //     'count' => (clone $query)->count()
+            // ]);
+
+            // VISIBILITÉ
+            $query->where(function ($q) use ($activePlanIds, $isAStudentPlan) {
+                $q->where('is_public', true);
+
+                if (!empty($activePlanIds)) {
+                    $q->orWhereHas('plans', function ($q2) use ($activePlanIds) {
+                        $q2->whereIn('subscription_plans.id', $activePlanIds); // Précise la table
                     });
+                }
 
-                })
-                // Filtre par type : ['formation', 'cours']
-                ->when($request->type, fn($q) => $q->where('type', $request->type))
-                // exclut les contenus non encore publiés
-                ->where(function ($q) use ($now) {
-                    $q->whereNull('publish_at')
-                        ->orWhere('publish_at', '<=', $now);
-                })
-                ->latest()
-                ->get();
-        });
+                if ($isAStudentPlan) {
+                    $q->orWhere('is_student_only', true);
+                }
+            });
 
-        return response()->json($contents);
+
+            // Log::info('Après visibilité', [
+            //     'count' => (clone $query)->count()
+            // ]);
+            // Log::info('IDs après visibilité', ['ids' => (clone $query)->pluck('id', 'type')]);
+
+            // TYPE
+            if ($type !== 'all') {
+                $query->where('type', $type);
+            }
+
+            // Log::info('Après type', [
+            //     'type' => $type,
+            //     'count' => (clone $query)->count()
+            // ]);
+
+            // PUBLISH
+            $query->where(function ($q) {
+                $q->whereNull('publish_at')
+                    ->orWhere('publish_at', '<=', now());
+            });
+
+            // Log::info('Après publish_at', [
+            //     'count' => (clone $query)->count()
+            // ]);
+
+            $results = $query->latest()->get();
+
+            // Log::info('FINAL RESULT', [
+            //     'count' => $results->count(),
+            //     'ids' => $results->pluck('id')
+            // ]);
+
+            return $results;
+        })();
     }
+
+
 }

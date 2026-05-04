@@ -18,7 +18,7 @@ return new class extends Migration {
             $table->foreignId('adherent_id')->constrained()->cascadeOnDelete();
             $table->foreignId('subscription_plan_id')->constrained();
 
-            $table->enum('status', ['active', 'suspended', 'expired']);
+            $table->enum('status', ['active', 'suspended', 'expired', 'completed']);
 
             $table->timestamp('starts_at');
             $table->timestamp('ends_at')->nullable();

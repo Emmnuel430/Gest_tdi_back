@@ -5,6 +5,7 @@ use App\Actions\HandleCartPayment;
 use App\Actions\HandlePrayerRequest;
 use App\Actions\HandleSubscription;
 use App\Actions\HandleTsedaka;
+use App\Http\Requests\InitiatePaymentRequest;
 use App\Models\Adherent;
 use App\Models\Transaction;
 use Illuminate\Http\Request;
@@ -16,98 +17,60 @@ use Illuminate\Support\Str;
 
 class PayementController extends Controller
 {
-    public function initiate(Request $request)
+    private function getCustomFields($request)
     {
-        $request->validate([
-            'email' => 'required|email',
-            'totalPrice' => 'required|numeric',
-            'type' => 'required|string|in:cart,prayer-request,subscription,tsedaka',
+        return match ($request->type) {
+            'cart' => ['cart_details' => $request->cart],
+            'prayer-request' => $request->only(['objet', 'message']),
+            'subscription' => $request->only(['subscription_plan_id', 'payment_step', 'payment_index']),
+            'tsedaka' => $request->only(['message', 'montant', 'anonymous']),
+            default => [],
+        };
+    }
 
-            // uniquement si cart
-            'cart' => 'required_if:type,cart|array',
+    public function initiate(InitiatePaymentRequest $request)
+    {
+        $paymentStep = $request->payment_step ?? 'full';
 
-            // uniquement si prière
-            'objet' => 'required_if:type,prayer-request|string',
+        if ($request->type === 'subscription') {
 
-            // subscription
-            'subscription_plan_id' => 'required_if:type,subscription|exists:subscription_plans,id',
-            'password' => 'required_if:type,subscription|string|min:6',
+            $exists = Adherent::where('email', $request->email)->exists();
 
-            'message' => 'nullable|string',
-            'montant' => 'required_if:type,tsedaka|numeric|min:100',
-            'anonymous' => 'required_if:type,tsedaka|boolean',
-        ]);
+            if (in_array($paymentStep, ['registration', 'full']) && $exists) {
+                return response()->json([
+                    'message' => 'Compte déjà existant.'
+                ], 422);
+            }
+        }
 
         try {
             return DB::transaction(function () use ($request) {
 
-                // 1. Vérif email uniquement pour subscription
-                if ($request->type === 'subscription') {
-                    $exists = Adherent::where('email', $request->email)->exists();
-
-                    if ($exists) {
-                        return response()->json([
-                            'message' => 'Un compte avec cet email existe déjà.'
-                        ], 422);
-                    }
-                }
-
-                // 2. Génération référence
                 $reference = Str::uuid()->toString();
 
-                // 3. Custom fields
-                $customFields = match ($request->type) {
-                    'cart' => [
-                        'cart_details' => $request->cart,
-                    ],
-                    'prayer-request' => [
-                        'objet' => $request->objet,
-                        'message' => $request->message,
-                    ],
-                    'subscription' => [
-                        'subscription_plan_id' => $request->subscription_plan_id,
-                        'payment_step' => $request->payment_step,
-                        'payment_index' => $request->payment_index,
-                    ],
-                    'tsedaka' => [
-                        'message' => $request->message,
-                        'montant' => $request->montant,
-                        'anonymous' => $request->anonymous,
-                    ],
-                    default => [],
-                };
+                $metadata = array_merge(
+                    $request->safe()->only(['email', 'type', 'numero']),
+                    [
+                        'password' => $request->password ? bcrypt($request->password) : null,
+                        'nom' => ($request->type === 'tsedaka' && $request->anonymous) ? 'Anonyme' : $request->nom,
+                        'prenom' => ($request->type === 'tsedaka' && $request->anonymous) ? 'Donateur' : $request->prenom,
+                        'custom_fields' => $this->getCustomFields($request)
+                    ]
+                );
 
-                // 4. Metadata
-                $metadata = [
-                    'nom' => $request->anonymous ? 'Anonyme' : $request->nom,
-                    'prenom' => $request->anonymous ? 'Donateur' : $request->prenom,
-                    'email' => $request->email,
-                    'numero' => $request->numero,
-                    'type' => $request->type,
-
-                    // attention sécurité
-                    'password' => $request->password ? bcrypt($request->password) : null,
-                    'custom_fields' => $customFields,
-                ];
-
-                if ($request->type === 'cart') {
-                    $metadata['total_items'] = $request->totalItems;
-                    $metadata['commune'] = $request->commune;
-                }
-
-                // 5. Appel Paystack
+                $callbackUrl = $request->callback_url ?? config('app.frontend_url') . '/payment/callback';
                 $response = Http::withToken(config('services.paystack.secret_key'))
                     ->post('https://api.paystack.co/transaction/initialize', [
                         'email' => $request->email,
                         'amount' => $request->totalPrice * 100,
                         'currency' => 'XOF',
                         'reference' => $reference,
-                        'callback_url' => config('app.frontend_url') . '/payment/callback',
+                        'callback_url' => $callbackUrl,
                         'metadata' => $metadata
                     ]);
 
                 if (!$response->successful()) {
-                    throw new \Exception('Erreur Paystack');
+                    throw new \Exception('Paystack Error');
                 }
 
                 return response()->json([
@@ -117,10 +80,11 @@ class PayementController extends Controller
             });
 
         } catch (\Throwable $e) {
+
             \Log::error('Payment initiate error: ' . $e->getMessage());
 
             return response()->json([
-                'message' => 'Erreur lors de l’initiation du paiement'
+                'message' => 'Erreur initiation'
             ], 500);
         }
     }
@@ -174,8 +138,12 @@ class PayementController extends Controller
                         'tsedaka' => HandleTsedaka::class,
                     ];
 
-                    if (array_key_exists($type, $actions)) {
-                        app($actions[$type])->execute($transaction, $metadata);
+                    $result = app($actions[$type])->execute($transaction, $metadata);
+
+                    if (is_array($result) && ($result['status'] ?? null) === 'error') {
+                        return response()->json([
+                            'message' => $result['message']
+                        ], $result['code'] ?? 400);
                     }
 
                     return response()->json(['status' => 'ok', 'reference' => $data['reference']]);

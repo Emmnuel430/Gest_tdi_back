@@ -31,9 +31,7 @@ Route::post('/adherent/login', [AdherentController::class, 'login']);
 
 Route::middleware(['auth:sanctum', 'adherent'])->group(function () {
 
-    Route::get('/adherent/me', function (Request $request) {
-        return response()->json(['adherent' => $request->user()]);
-    });
+    Route::get('/adherent/me', [AdherentController::class, 'me']);
 
     Route::get('/adherents/contents', [ContentController::class, 'byType']);
     Route::post('/adherents/validate', [AdherentController::class, 'updateProfile']);

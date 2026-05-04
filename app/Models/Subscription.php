@@ -16,13 +16,16 @@ class Subscription extends Model
         'status',
         'starts_at',
         'ends_at',
+        'next_payment_at',
         'remaining_months',
     ];
+    protected $guarded = ['starts_at'];
 
     protected $casts = [
         'starts_at' => 'datetime',
         'ends_at' => 'datetime',
         'remaining_months' => 'integer',
+        'next_payment_at' => 'datetime',
     ];
 
     /**
@@ -111,5 +114,15 @@ class Subscription extends Model
         }
 
         return self::create($data);
+    }
+
+    public function isCompleted()
+    {
+        return $this->status === 'completed';
+    }
+
+    public function hasPendingPayments()
+    {
+        return $this->remaining_months > 0;
     }
 }
