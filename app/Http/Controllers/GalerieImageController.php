@@ -123,32 +123,38 @@ class GalerieImageController extends Controller
     public function reorderImages(Request $request)
     {
         $request->validate([
-            '*.id' => 'required|exists:galerie_images,id',
+            '*.id' => 'required|integer|exists:galerie_images,id',
             '*.ordre' => 'required|integer',
         ]);
 
-        DB::beginTransaction();
+        $data = $request->all();
 
-        try {
+        $cases = [];
+        $ids = [];
 
-            foreach ($request->all() as $item) {
-                GalerieImage::where('id', $item['id'])
-                    ->update(['ordre' => $item['ordre']]);
-            }
+        foreach ($data as $item) {
+            $id = (int) $item['id'];
+            $ordre = (int) $item['ordre'];
 
-            DB::commit();
+            $ids[] = $id;
 
-            return response()->json(['message' => 'Ordre mis à jour']);
-
-        } catch (\Exception $e) {
-
-            DB::rollBack();
-
-            return response()->json([
-                'error' => 'Erreur reorder',
-                'message' => $e->getMessage(),
-            ], 500);
+            $cases[] = "WHEN {$id} THEN {$ordre}";
         }
+
+        $ids = implode(',', array_unique($ids));
+        $cases = implode(' ', $cases);
+
+        DB::update("
+        UPDATE galerie_images
+        SET ordre = CASE id
+            {$cases}
+        END
+        WHERE id IN ({$ids})
+    ");
+
+        return response()->json([
+            'message' => 'Ordre mis à jour'
+        ]);
     }
 
 }

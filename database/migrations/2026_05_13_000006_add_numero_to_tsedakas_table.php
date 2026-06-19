@@ -12,8 +12,9 @@ return new class extends Migration {
      */
     public function up()
     {
-        Schema::table('subscriptions', function (Blueprint $table) {
-            $table->timestamp('next_payment_at')->nullable()->after('ends_at');
+        Schema::table('tsedakas', function (Blueprint $table) {
+            $table->string('numero')->nullable()->after('email');
+
         });
     }
 
@@ -24,8 +25,9 @@ return new class extends Migration {
      */
     public function down()
     {
-        Schema::table('subscriptions', function (Blueprint $table) {
-            $table->dropColumn('next_payment_at');
+        Schema::table('tsedakas', function (Blueprint $table) {
+            $table->dropColumn('numero');
+
         });
     }
 };

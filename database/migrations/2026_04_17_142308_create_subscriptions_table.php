@@ -22,8 +22,10 @@ return new class extends Migration {
 
             $table->timestamp('starts_at');
             $table->timestamp('ends_at')->nullable();
+            $table->timestamp('next_payment_at')->nullable();
 
             $table->integer('remaining_months')->nullable();
+
 
             $table->timestamps();
         });

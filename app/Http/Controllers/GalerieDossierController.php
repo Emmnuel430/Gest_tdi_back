@@ -51,7 +51,10 @@ class GalerieDossierController extends Controller
     public function indexPublic()
     {
         $dossiers = GalerieDossier::with([
-            'images.media'
+            'images' => function ($query) {
+                $query->with('media')
+                    ->orderBy('ordre');
+            }
         ])
             ->withCount('images')
             ->latest()

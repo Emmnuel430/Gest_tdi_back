@@ -146,7 +146,7 @@ class PayementController extends Controller
                         ], $result['code'] ?? 400);
                     }
 
-                    return response()->json(['status' => 'ok', 'reference' => $data['reference']]);
+                    return response()->json(['status' => 'ok', 'reference' => $data['reference'], 'type' => $type]);
                 });
 
             } catch (\Exception $e) {

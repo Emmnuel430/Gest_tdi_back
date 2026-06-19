@@ -20,6 +20,7 @@ class HandlePrayerRequest
                 'nom' => $metadata['nom'] ?? null,
                 'prenom' => $metadata['prenom'] ?? null,
                 'email' => $transaction->email,
+                'numero' => $transaction->numero,
                 'objet' => $customFields['objet'] ?? null,
                 'message' => $customFields['message'] ?? null,
                 'is_validated' => true,

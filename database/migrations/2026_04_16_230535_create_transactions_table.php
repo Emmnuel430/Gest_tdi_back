@@ -29,7 +29,7 @@ return new class extends Migration {
 
             // 🧠 Type global
             $table->string('type');
-            // cart | prayer-request | subscription
+            // cart | prayer-request | subscription | tsedaka
 
             // Pour abonnement avec inscrition et mensualités
             $table->string('payment_step')->nullable();

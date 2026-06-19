@@ -14,6 +14,7 @@ class Tsedaka extends Model
         'nom',
         'prenom',
         'email',
+        'numero',
         'montant',
         'anonymous',
         'message',

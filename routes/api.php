@@ -165,6 +165,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::prefix('orders')->group(function () {
         Route::get('/', [OrderController::class, 'index']);
         Route::patch('{id}/status', [OrderController::class, 'changeStatus']);
+        Route::patch('{id}/delivery-details', [OrderController::class, 'updateDeliveryDetails']);
     });
 
     // Tsedakas

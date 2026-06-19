@@ -12,6 +12,7 @@ class PrayerRequest extends Model
         'nom',
         'prenom',
         'email',
+        'numero',
         'objet',
         'message',
         'is_validated',

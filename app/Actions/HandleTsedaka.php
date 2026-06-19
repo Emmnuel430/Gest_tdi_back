@@ -16,6 +16,7 @@ class HandleTsedaka
             'nom' => $metadata['nom'] ?? null,
             'prenom' => $metadata['prenom'] ?? null,
             'email' => $transaction->email,
+            'numero' => $transaction->numero,
             'montant' => $customFields['montant'] ?? 0,
             'anonymous' => filter_var($customFields['anonymous'] ?? false, FILTER_VALIDATE_BOOLEAN),
             'message' => $customFields['message'] ?? null,
