@@ -22,6 +22,7 @@ class AdherentResource extends JsonResource
             'contact' => $this->contact,
             'pseudo' => $this->pseudo,
             'profile_completed' => $this->profile_completed ? "true" : "false",
+            'is_active' => $this->is_active ? "true" : "false",
 
             // Charge le profil uniquement s'il est présent dans la requête SQL
             'profile' => $this->whenLoaded('profile'),

@@ -32,6 +32,7 @@ class StoreProfileRequest extends FormRequest
             'profession' => 'sometimes|nullable|string|max:100',
 
             // ================= CONTACT =================
+            'contact' => 'sometimes|required|string|max:20',
             'telephone_whatsapp' => 'sometimes|required|string|max:20',
             'telephone_secondaire' => 'sometimes|nullable|string|max:20',
 
@@ -57,6 +58,10 @@ class StoreProfileRequest extends FormRequest
             // ================= OBJECTIFS =================
             'motivation' => 'sometimes|required|string',
             'objectifs' => 'sometimes|required|string',
+
+            // ================= SÉCURITÉ =================
+            'old_password' => 'sometimes|required_with:new_password|string',
+            'new_password' => 'sometimes|required_with:old_password|string|min:8',
 
             // ================= CONTROLE =================
             'is_final_step' => 'sometimes|boolean',

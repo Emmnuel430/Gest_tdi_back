@@ -16,10 +16,14 @@ class EnsureAdherent
      */
     public function handle(Request $request, Closure $next)
     {
-        if (auth()->check() && auth()->user() instanceof \App\Models\Adherent) {
-            return $next($request);
+        if (!auth()->check() || !auth()->user() instanceof \App\Models\Adherent) {
+            return response()->json(['message' => 'Non autorisé'], 403);
         }
 
-        return response()->json(['message' => 'Non autorisé'], 403);
+        if (!auth()->user()->is_active) {
+            return response()->json(['message' => 'Compte adhérent désactivé'], 403);
+        }
+
+        return $next($request);
     }
 }

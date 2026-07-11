@@ -8,7 +8,6 @@ use App\Actions\HandleTsedaka;
 use App\Http\Requests\InitiatePaymentRequest;
 use App\Models\Adherent;
 use App\Models\Transaction;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -48,15 +47,23 @@ class PayementController extends Controller
 
                 $reference = Str::uuid()->toString();
 
+                $customFields = $this->getCustomFields($request);
+
                 $metadata = array_merge(
                     $request->safe()->only(['email', 'type', 'numero']),
                     [
                         'password' => $request->password ? bcrypt($request->password) : null,
                         'nom' => ($request->type === 'tsedaka' && $request->anonymous) ? 'Anonyme' : $request->nom,
                         'prenom' => ($request->type === 'tsedaka' && $request->anonymous) ? 'Donateur' : $request->prenom,
-                        'custom_fields' => $this->getCustomFields($request)
+                        'custom_fields' => $customFields,
                     ]
                 );
+
+                if ($request->type === 'subscription') {
+                    $metadata['subscription_plan_id'] = $request->subscription_plan_id;
+                    $metadata['payment_step'] = $request->payment_step;
+                    $metadata['payment_index'] = $request->payment_index;
+                }
 
                 $callbackUrl = $request->callback_url ?? config('app.frontend_url') . '/payment/callback';
                 $response = Http::withToken(config('services.paystack.secret_key'))

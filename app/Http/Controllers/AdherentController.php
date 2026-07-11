@@ -12,6 +12,7 @@ use Illuminate\Support\Facades\Mail;
 use App\Models\Adherent;
 use App\Mail\AdherentValidatedMail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class AdherentController extends Controller
 {
@@ -101,7 +102,7 @@ class AdherentController extends Controller
         }
 
         if (!$adherent->is_active) {
-            return response()->json(['message' => 'Ce compte n\'est pas valide ou a été désactivé.'], 403);
+            return response()->json(['message' => 'Ce compte n\'est pas valide ou a été désactivé. Contactez l\'administration si nécessaire.'], 403);
         }
         $adherent->load('activeSubscription.plan');
 
@@ -121,25 +122,46 @@ class AdherentController extends Controller
         DB::transaction(function () use ($adherent, $request) {
             $data = $request->validated();
 
+            if ($request->filled('new_password')) {
+                if (!Hash::check($request->input('old_password'), $adherent->password)) {
+                    throw ValidationException::withMessages([
+                        'old_password' => ['Mot de passe actuel incorrect.'],
+                    ]);
+                }
+
+                $adherent->update([
+                    'password' => Hash::make($request->input('new_password')),
+                ]);
+            }
+
+            if ($request->filled('contact')) {
+                $adherent->update([
+                    'contact' => $request->input('contact'),
+                ]);
+            }
+
+            $profileData = collect($data)
+                ->except(['old_password', 'new_password'])
+                ->toArray();
+
             $adherent->profile()->updateOrCreate(
                 ['adherent_id' => $adherent->id],
-                $data
+                $profileData
             );
 
             if ($request->boolean('is_final_step')) {
                 $adherent->update([
-                    'profile_completed' => true
+                    'profile_completed' => true,
                 ]);
             }
         });
 
-        // 🔥 Important : reload relation
         $adherent->load('profile');
 
         return response()->json([
             'message' => 'Progression enregistrée',
             'profile_completed' => $adherent->profile_completed,
-            'profile' => $adherent->profile
+            'profile' => $adherent->profile,
         ]);
     }
 
