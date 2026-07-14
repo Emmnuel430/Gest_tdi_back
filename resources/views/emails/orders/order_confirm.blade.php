@@ -121,12 +121,13 @@
                         <td style="padding-top:25px; font-size:15px; color:#333;">
 
                             <p>
-                                📞 Vous serez contacté pour la livraison dans un délai de <strong>1 à 3 jours
-                                    maximum</strong>.
+                                📞 * Vous serez contacté pour la livraison dans un délai de <strong>1 à 3 jours
+                                    maximum</strong> pour les colis physiques.
                             </p>
 
                             <p>
-                                🚚 Les frais de livraison/expédition sont à votre charge et vous seront communiqués lors
+                                🚚 * Les frais de livraison/expédition sont à votre charge et vous seront communiqués
+                                lors
                                 de l’appel.
                             </p>
 
