@@ -23,7 +23,7 @@ class HandleCartPayment
 
         $transaction->transactionable()->associate($order)->save();
 
-        // Dispatch du job robuste avec retries et traçabilité d'envoi
-        \App\Jobs\SendLibraryResourcesJob::dispatch($order);
+        // Envoi immédiat après la réponse HTTP (sans dépendre d'un démon queue:work externe)
+        \App\Jobs\SendLibraryResourcesJob::dispatchAfterResponse($order);
     }
 }

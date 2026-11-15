@@ -207,11 +207,11 @@ class OrderController extends Controller
             'resource_recipient_email' => $targetEmail,
         ]);
 
-        \App\Jobs\SendLibraryResourcesJob::dispatch($order, $targetEmail);
+        \App\Jobs\SendLibraryResourcesJob::dispatchAfterResponse($order, $targetEmail);
 
         return response()->json([
             'success' => true,
-            'message' => "La réexpédition des ressources vers {$targetEmail} a été mise en file d'attente avec succès.",
+            'message' => "La réexpédition des ressources vers {$targetEmail} a été lancée avec succès.",
             'data' => $order->fresh(['transactions'])
         ]);
     }

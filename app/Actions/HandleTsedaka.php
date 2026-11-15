@@ -3,31 +3,53 @@ namespace App\Actions;
 
 use App\Models\Tsedaka;
 use App\Mail\TsedakaThankYou;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 class HandleTsedaka
 {
     public function execute($transaction, $metadata)
     {
+        if (Tsedaka::where('reference', $transaction->reference)->exists()) {
+            return;
+        }
+
         $customFields = $metadata['custom_fields'] ?? [];
+        if (array_is_list($customFields)) {
+            $normalized = [];
+            foreach ($customFields as $field) {
+                if (is_array($field) && isset($field['variable_name'])) {
+                    $normalized[$field['variable_name']] = $field['value'] ?? null;
+                }
+            }
+            $customFields = $normalized;
+        }
+
+        $anonymous = filter_var($customFields['anonymous'] ?? $metadata['anonymous'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        $montant = (int) round((float) ($customFields['montant'] ?? $metadata['montant'] ?? $transaction->amount ?? 0));
 
         $tsedaka = Tsedaka::create([
             'reference' => $transaction->reference,
-            'nom' => $metadata['nom'] ?? null,
-            'prenom' => $metadata['prenom'] ?? null,
-            'email' => $transaction->email,
-            'numero' => $transaction->numero,
-            'montant' => $customFields['montant'] ?? 0,
-            'anonymous' => filter_var($customFields['anonymous'] ?? false, FILTER_VALIDATE_BOOLEAN),
-            'message' => $customFields['message'] ?? null,
+            'nom' => $anonymous ? 'Anonyme' : ($metadata['nom'] ?? $customFields['nom'] ?? 'Anonyme'),
+            'prenom' => $anonymous ? 'Donateur' : ($metadata['prenom'] ?? $customFields['prenom'] ?? ''),
+            'email' => $transaction->email ?? ($metadata['email'] ?? ''),
+            'numero' => $transaction->numero ?? ($metadata['numero'] ?? null),
+            'montant' => $montant,
+            'anonymous' => $anonymous,
+            'message' => $customFields['message'] ?? $metadata['message'] ?? null,
         ]);
 
-        // 🔗 polymorph (si utilisé)
+        // 🔗 polymorph
         $transaction->transactionable()->associate($tsedaka)->save();
-        dispatch(
-            fn() =>
-            Mail::to($tsedaka->email)
-                ->send(new TsedakaThankYou($tsedaka))
-        );
+
+        dispatch(function () use ($tsedaka) {
+            try {
+                if ($tsedaka->email) {
+                    Mail::to($tsedaka->email)->send(new TsedakaThankYou($tsedaka));
+                }
+            } catch (\Throwable $e) {
+                Log::warning('Tsedaka confirmation mail failed: ' . $e->getMessage());
+            }
+        })->afterResponse();
     }
 }

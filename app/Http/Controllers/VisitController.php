@@ -111,11 +111,14 @@ class VisitController extends Controller
     {
         $today = now()->toDateString();
 
-        // Identifiant utilisateur (IP + navigateur)
-        $identifier = $request->ip() . '|' . ($request->userAgent() ?? 'unknown');
+        // Identifiant visiteur unique (visitor_id client ou empreinte IP + User-Agent)
+        $visitorId = $request->input('visitor_id');
+        $identifier = $visitorId
+            ? "vid:{$visitorId}"
+            : (($request->ip() ?? '0.0.0.0') . '|' . ($request->userAgent() ?? 'unknown'));
         $cacheKey = "visit_" . md5($identifier) . "_{$today}";
 
-        // ✅ 1. Check cache AVANT DB (ultra important perf)
+        // ✅ 1. Check cache AVANT DB (ultra important perf : 1 seul comptage par visiteur unique et par jour)
         if (Cache::has($cacheKey)) {
             return response()->json(['status' => 'already_tracked']);
         }

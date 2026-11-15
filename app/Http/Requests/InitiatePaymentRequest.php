@@ -27,7 +27,17 @@ class InitiatePaymentRequest extends FormRequest
         return [
             'email' => 'required|email',
             'numero' => 'nullable|string',
-            'totalPrice' => 'required|numeric|min:1',
+            'nom' => 'required_if:type,prayer-request|nullable|string',
+            'prenom' => 'required_if:type,prayer-request|nullable|string',
+            'totalPrice' => [
+                'required',
+                'numeric',
+                Rule::when(
+                    in_array($this->type, ['tsedaka', 'prayer-request']),
+                    ['min:2000'],
+                    ['min:1']
+                ),
+            ],
             'type' => 'required|string|in:cart,prayer-request,subscription,tsedaka',
 
             'callback_url' => 'nullable|string',
@@ -49,8 +59,9 @@ class InitiatePaymentRequest extends FormRequest
                 Rule::requiredIf(fn() => in_array($this->payment_step, ['registration', 'full']))
             ],
 
-            'message' => 'nullable|string',
-            'montant' => 'required_if:type,tsedaka|numeric|min:100',
+            'message' => 'required_if:type,prayer-request|nullable|string',
+            'montant' => 'required_if:type,tsedaka,prayer-request|numeric|min:2000',
+            'montant_tsedaka' => 'nullable|numeric|min:0',
             'anonymous' => 'required_if:type,tsedaka|boolean',
         ];
     }

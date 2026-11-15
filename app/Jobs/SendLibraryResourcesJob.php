@@ -43,28 +43,36 @@ class SendLibraryResourcesJob implements ShouldQueue
     public function handle()
     {
         $recipient = $this->overrideEmail ?: $this->order->email;
+
+        if (!$recipient) {
+            Log::warning("Commande #{$this->order->id} : Aucun email destinataire disponible.");
+            return;
+        }
+
+        // Anti-doublon : si déjà envoyé et qu'il ne s'agit pas d'un renvoi manuel depuis le back-office
+        if ($this->overrideEmail === null && $this->order->resource_delivery_status === 'sent') {
+            Log::info("Commande #{$this->order->id} : Email de confirmation déjà envoyé à {$recipient}.");
+            return;
+        }
+
         $customFields = $this->order->metadata ?? [];
         $resources = [];
 
         foreach ($customFields['cart_details'] ?? [] as $item) {
             if (!empty($item['product_id'])) {
                 $sub = Subsection::find($item['product_id']);
-                if ($sub && $sub->type === 'ressource' && $sub->link) {
+                if ($sub && !empty($sub->link)) {
                     $resources[] = [
                         'title' => $sub->title,
-                        'link' => $sub->link
+                        'link' => $sub->link,
                     ];
                 }
+            } elseif (!empty($item['link'])) {
+                $resources[] = [
+                    'title' => $item['title'] ?? 'Ressource numérique',
+                    'link' => $item['link'],
+                ];
             }
-        }
-
-        // Si aucun article n'est une ressource numérique téléchargeable
-        if (empty($resources)) {
-            $this->order->update([
-                'resource_delivery_status' => 'not_applicable',
-            ]);
-            Log::info("Commande #{$this->order->id} : Aucune ressource numérique à expédier.");
-            return;
         }
 
         $transaction = $this->order->transactions()->latest()->first();
@@ -80,7 +88,7 @@ class SendLibraryResourcesJob implements ShouldQueue
                 'delivery_error' => null,
             ]);
 
-            Log::info("Ressources de la commande #{$this->order->id} envoyées avec succès à {$recipient}.");
+            Log::info("Email de confirmation de la commande #{$this->order->id} envoyé avec succès à {$recipient}.");
 
         } catch (\Throwable $e) {
             $this->order->update([
@@ -90,8 +98,7 @@ class SendLibraryResourcesJob implements ShouldQueue
                 'delivery_error' => $e->getMessage(),
             ]);
 
-            Log::error("Échec d'envoi des ressources pour la commande #{$this->order->id} vers {$recipient}: " . $e->getMessage());
-            throw $e;
+            Log::error("Échec d'envoi de l'email pour la commande #{$this->order->id} vers {$recipient}: " . $e->getMessage());
         }
     }
 }

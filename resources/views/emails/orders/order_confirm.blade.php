@@ -64,11 +64,11 @@
                                 <tbody>
                                     @foreach($order->metadata['cart_details'] ?? [] as $item)
                                         <tr style="border-bottom:1px solid #eee;">
-                                            <td>{{ $item['title'] }}</td>
-                                            <td align="center">{{ $item['quantity'] }}</td>
-                                            <td align="right">{{ number_format($item['price'], 0, ',', ' ') }} FCFA</td>
+                                            <td>{{ $item['title'] ?? 'Article' }}</td>
+                                            <td align="center">{{ $item['quantity'] ?? 1 }}</td>
+                                            <td align="right">{{ number_format((float) ($item['price'] ?? 0), 0, ',', ' ') }} FCFA</td>
                                             <td align="right">
-                                                {{ number_format($item['price'] * $item['quantity'], 0, ',', ' ') }} FCFA
+                                                {{ number_format(((float) ($item['price'] ?? 0)) * ((int) ($item['quantity'] ?? 1)), 0, ',', ' ') }} FCFA
                                             </td>
                                         </tr>
                                     @endforeach
@@ -81,7 +81,7 @@
                     <!-- TOTAL -->
                     <tr>
                         <td style="text-align:right; padding-top:15px; font-size:16px;">
-                            <strong>Total : {{ number_format($transaction->amount, 0, ',', ' ') }} FCFA</strong>
+                            <strong>Total : {{ number_format((float) ($transaction->amount ?? 0), 0, ',', ' ') }} FCFA</strong>
                         </td>
                     </tr>
 
@@ -89,7 +89,7 @@
                     @if(!empty($resources))
                         <tr>
                             <td style="padding-top:25px;">
-                                <h3 style="color:#2d6cdf;">📚 Vos ebooks</h3>
+                                <h3 style="color:#2d6cdf;">📚 Vos ressources numériques</h3>
 
                                 @foreach($resources as $res)
                                     <div style="margin-bottom:15px; padding:10px; background:#f9f9f9; border-radius:6px;">
@@ -109,10 +109,11 @@
 
                     @if(empty($resources))
                         <tr>
-
-                            <p style="margin-top:15px;">
-                                Vous recevrez vos éléments très bientôt.
-                            </p>
+                            <td style="padding-top:15px;">
+                                <p style="margin-top:15px;">
+                                    Vous recevrez vos éléments très bientôt.
+                                </p>
+                            </td>
                         </tr>
                     @endif
 

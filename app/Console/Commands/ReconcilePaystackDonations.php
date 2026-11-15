@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Actions\HandlePrayerRequest;
 use App\Actions\HandleTsedaka;
 use App\Models\Transaction;
 use App\Models\Tsedaka;
@@ -65,7 +66,7 @@ class ReconcilePaystackDonations extends Command
                 $metadata = $tx['metadata'] ?? [];
                 $type = $metadata['type'] ?? null;
 
-                if ($type !== 'tsedaka') {
+                if (!in_array($type, ['tsedaka', 'prayer-request'], true)) {
                     continue;
                 }
 
@@ -73,15 +74,15 @@ class ReconcilePaystackDonations extends Command
 
                 // Vérifier si déjà en base
                 $exists = Transaction::where('reference', $reference)->exists()
-                    || Tsedaka::where('reference', $reference)->exists();
+                    || ($type === 'tsedaka' && Tsedaka::where('reference', $reference)->exists());
 
                 if ($exists) {
                     $alreadyCount++;
                     continue;
                 }
 
-                // Synchronisation du don manquant
-                DB::transaction(function () use ($tx, $metadata, $reference) {
+                // Synchronisation de la transaction manquante (Tsedaka ou Demande de prière)
+                DB::transaction(function () use ($tx, $metadata, $reference, $type) {
                     $transaction = Transaction::create([
                         'reference' => $reference,
                         'amount' => $tx['amount'] / 100,
@@ -90,14 +91,18 @@ class ReconcilePaystackDonations extends Command
                         'nom' => trim(($metadata['nom'] ?? '') . ' ' . ($metadata['prenom'] ?? '')) ?: 'Client N/A',
                         'email' => $tx['customer']['email'] ?? null,
                         'numero' => $metadata['numero'] ?? null,
-                        'type' => 'tsedaka',
+                        'type' => $type,
                     ]);
 
-                    app(HandleTsedaka::class)->execute($transaction, $metadata);
+                    if ($type === 'tsedaka') {
+                        app(HandleTsedaka::class)->execute($transaction, $metadata);
+                    } elseif ($type === 'prayer-request') {
+                        app(HandlePrayerRequest::class)->execute($transaction, $metadata);
+                    }
                 });
 
                 $syncedCount++;
-                $this->line("✅ Don synchronisé : Réf [{$reference}] - Montant : " . ($tx['amount'] / 100) . " XOF");
+                $this->line("✅ Transaction ({$type}) synchronisée : Réf [{$reference}] - Montant : " . ($tx['amount'] / 100) . " XOF");
             }
 
             $this->info("Réconciliation terminée avec succès !");

@@ -23,10 +23,32 @@ class PayementController extends Controller
     private function getCustomFields($request)
     {
         return match ($request->type) {
-            'cart' => ['cart_details' => $request->cart],
-            'prayer-request' => $request->only(['objet', 'message']),
+            'cart' => [
+                'cart_details' => collect($request->cart ?? [])->map(function ($item) {
+                    $sub = Subsection::find($item['product_id'] ?? null);
+                    return [
+                        'product_id' => (int) ($item['product_id'] ?? 0),
+                        'title' => $sub ? $sub->title : ($item['title'] ?? 'Article'),
+                        'price' => $sub && $sub->prix !== null ? (float) $sub->prix : (float) ($item['price'] ?? 0),
+                        'quantity' => (int) ($item['quantity'] ?? 1),
+                        'type' => $sub ? $sub->type : ($item['type'] ?? null),
+                        'image' => $item['image'] ?? ($sub && $sub->image ? asset('storage/' . $sub->image) : null),
+                        'itemFrom' => $item['itemFrom'] ?? null,
+                    ];
+                })->values()->all(),
+            ],
+            'prayer-request' => [
+                'objet' => $request->objet,
+                'message' => $request->message,
+                'montant' => (float) $request->montant,
+                'montant_tsedaka' => (float) ($request->montant_tsedaka ?? 0),
+            ],
             'subscription' => $request->only(['subscription_plan_id', 'payment_step', 'payment_index']),
-            'tsedaka' => $request->only(['message', 'montant', 'anonymous']),
+            'tsedaka' => [
+                'message' => $request->message,
+                'montant' => (float) $request->montant,
+                'anonymous' => filter_var($request->anonymous ?? false, FILTER_VALIDATE_BOOLEAN),
+            ],
             default => [],
         };
     }
@@ -61,8 +83,21 @@ class PayementController extends Controller
                 }
                 return (float) $plan->price;
             })(),
-            'prayer-request' => (float) config('services.paystack.prayer_request_price', 5000),
-            'tsedaka' => (float) $request->montant,
+            'prayer-request' => (function () use ($request) {
+                $montant = (float) ($request->montant ?? 0);
+                $montantTsedaka = (float) ($request->montant_tsedaka ?? 0);
+                if ($montant < 2000 || $montantTsedaka < 0) {
+                    throw new \InvalidArgumentException("Le montant minimum pour une demande de prière est de 2 000 FCFA.");
+                }
+                return $montant + $montantTsedaka;
+            })(),
+            'tsedaka' => (function () use ($request) {
+                $montant = (float) ($request->montant ?? 0);
+                if ($montant < 2000) {
+                    throw new \InvalidArgumentException("Le montant minimum pour un don (Tsedaka) est de 2 000 FCFA.");
+                }
+                return $montant;
+            })(),
             default => 0.0,
         };
     }
