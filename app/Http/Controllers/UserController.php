@@ -24,9 +24,9 @@ class UserController extends Controller
     public function addUser(Request $request)
     {
         $authUser = $request->user();
-        if (!$this->isAdmin($authUser)) {
+        if (! $this->isAdmin($authUser)) {
             return response()->json([
-                'error' => 'Accès refusé. Privilèges administrateur requis.'
+                'error' => 'Accès refusé. Privilèges administrateur requis.',
             ], 403);
         }
 
@@ -60,16 +60,16 @@ class UserController extends Controller
         $isAdmin = $this->isAdmin($authUser);
         $isSelf = $authUser && ((int) $authUser->id === (int) $user->id);
 
-        if (!$isAdmin && !$isSelf) {
+        if (! $isAdmin && ! $isSelf) {
             return response()->json([
-                'error' => 'Accès refusé. Vous ne pouvez modifier que votre propre profil.'
+                'error' => 'Accès refusé. Vous ne pouvez modifier que votre propre profil.',
             ], 403);
         }
 
         // Empêcher l'élévation de privilèges par un non-administrateur
-        if ($request->filled('role') && $request->role !== $user->role && !$isAdmin) {
+        if ($request->filled('role') && $request->role !== $user->role && ! $isAdmin) {
             return response()->json([
-                'error' => 'Accès refusé. Seul un administrateur peut modifier les rôles.'
+                'error' => 'Accès refusé. Seul un administrateur peut modifier les rôles.',
             ], 403);
         }
 
@@ -100,11 +100,11 @@ class UserController extends Controller
     {
         $authUser = $request->user();
 
-        if (!$authUser) {
+        if (! $authUser) {
             return response()->json(['status' => 'Erreur : Utilisateur non authentifié.'], 401);
         }
 
-        if (!$this->isAdmin($authUser)) {
+        if (! $this->isAdmin($authUser)) {
             return response()->json([
                 'status' => 'forbidden',
                 'error' => 'Accès refusé. Privilèges administrateur requis.',
@@ -119,7 +119,7 @@ class UserController extends Controller
         }
 
         $user = User::find($id);
-        if (!$user) {
+        if (! $user) {
             return response()->json(['status' => 'Utilisateur introuvable'], 404);
         }
 
@@ -133,7 +133,7 @@ class UserController extends Controller
     {
         $user = User::where('pseudo', $request->pseudo)->first();
 
-        if (!$user || !Hash::check($request->password, $user->password)) {
+        if (! $user || ! Hash::check($request->password, $user->password)) {
             return response()->json(['error' => 'Pseudo ou mot de passe incorrect'], 401);
         }
 
@@ -157,7 +157,7 @@ class UserController extends Controller
     public function getUser($id)
     {
         $user = User::find($id);
-        if (!$user) {
+        if (! $user) {
             return response()->json(['error' => 'Utilisateur non trouvé.'], 404);
         }
 

@@ -19,7 +19,7 @@ class PrayerRequestController extends Controller
         $query = PrayerRequest::with([
             'transactions' => function ($query) {
                 $query->latest();
-            }
+            },
         ])->latest();
 
         $paginator = $query->paginate($request->integer('per_page', 25));
@@ -44,7 +44,7 @@ class PrayerRequestController extends Controller
         return DB::transaction(function () use ($id) {
             $prayer = PrayerRequest::findOrFail($id);
 
-            if (!$prayer->is_validated) {
+            if (! $prayer->is_validated) {
                 $prayer->is_validated = true;
                 $prayer->save();
 
@@ -53,7 +53,7 @@ class PrayerRequestController extends Controller
                         try {
                             Mail::to($prayer->email)->send(new PrayerRequestValidated($prayer));
                         } catch (\Throwable $e) {
-                            Log::warning('Validation email failed for prayer request #' . $prayer->id . ': ' . $e->getMessage());
+                            Log::warning('Validation email failed for prayer request #'.$prayer->id.': '.$e->getMessage());
                         }
                     });
                 }
@@ -71,6 +71,7 @@ class PrayerRequestController extends Controller
     {
         $prayer = PrayerRequest::findOrFail($id);
         $prayer->delete();
+
         return response()->json(['status' => 'deleted', 'message' => 'Demande de prière supprimée avec succès']);
     }
 }

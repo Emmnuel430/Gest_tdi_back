@@ -66,6 +66,5 @@ class StoreProfileRequest extends FormRequest
             // ================= CONTROLE =================
             'is_final_step' => 'sometimes|boolean',
         ];
-
     }
 }

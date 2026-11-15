@@ -5,7 +5,8 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration {
+return new class extends Migration
+{
     /**
      * Run the migrations.
      *
@@ -14,7 +15,7 @@ return new class extends Migration {
     public function up()
     {
         // Dette #08 : Table jobs pour QUEUE_CONNECTION=database
-        if (!Schema::hasTable('jobs')) {
+        if (! Schema::hasTable('jobs')) {
             Schema::create('jobs', function (Blueprint $table) {
                 $table->bigIncrements('id');
                 $table->string('queue')->index();
@@ -27,14 +28,14 @@ return new class extends Migration {
         }
 
         // Dette #06 & #24 : S'assurer que publish_at existe sur subsections
-        if (Schema::hasTable('subsections') && !Schema::hasColumn('subsections', 'publish_at')) {
+        if (Schema::hasTable('subsections') && ! Schema::hasColumn('subsections', 'publish_at')) {
             Schema::table('subsections', function (Blueprint $table) {
                 $table->timestamp('publish_at')->nullable()->after('order');
             });
         }
 
         // Dette #21 : Champ explicite is_visible sur sections (remplace le magic number order !== 7)
-        if (Schema::hasTable('sections') && !Schema::hasColumn('sections', 'is_visible')) {
+        if (Schema::hasTable('sections') && ! Schema::hasColumn('sections', 'is_visible')) {
             Schema::table('sections', function (Blueprint $table) {
                 $table->boolean('is_visible')->default(true)->after('order');
             });

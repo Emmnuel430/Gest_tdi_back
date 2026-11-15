@@ -14,7 +14,7 @@ class EnsureUserHasRole
     {
         $user = $request->user();
 
-        if (!$user || !isset($user->role) || !in_array($user->role, $roles, true)) {
+        if (! $user || ! isset($user->role) || ! in_array($user->role, $roles, true)) {
             return response()->json([
                 'error' => 'Accès refusé. Privilèges insuffisants.',
                 'status' => 'forbidden',

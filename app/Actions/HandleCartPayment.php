@@ -1,9 +1,8 @@
 <?php
+
 namespace App\Actions;
 
-use App\Models\{Order, Subsection};
-use App\Mail\OrderConfirm;
-use Illuminate\Support\Facades\{Mail, Log};
+use App\Models\Order;
 
 class HandleCartPayment
 {

@@ -7,7 +7,6 @@ use App\Models\GalerieImage;
 use App\Models\Media;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 
 class GalerieImageController extends Controller
 {
@@ -35,8 +34,9 @@ class GalerieImageController extends Controller
                 ->where('media_id', $mediaId)
                 ->exists();
 
-            if ($exists)
+            if ($exists) {
                 continue;
+            }
 
             $insertData[] = [
                 'dossier_id' => $request->dossier_id,
@@ -54,13 +54,14 @@ class GalerieImageController extends Controller
 
         return response()->json(['success' => true]);
     }
+
     // ImagesByDossier
     public function getImagesByDossier($dossierId)
     {
         $dossier = GalerieDossier::with([
             'images' => function ($query) {
                 $query->with('media')->orderBy('ordre');
-            }
+            },
         ])->findOrFail($dossierId);
 
         return response()->json([
@@ -68,9 +69,9 @@ class GalerieImageController extends Controller
                 'id',
                 'nom',
                 'description',
-                'is_visible'
+                'is_visible',
             ]),
-            'images' => $dossier->images
+            'images' => $dossier->images,
         ]);
     }
 
@@ -104,19 +105,19 @@ class GalerieImageController extends Controller
         GalerieImage::whereIn('id', $ids)->delete();
 
         return response()->json([
-            'message' => count($request->ids) . ' image(s) supprimée(s)'
+            'message' => count($request->ids).' image(s) supprimée(s)',
         ]);
     }
 
     public function toggle($id)
     {
         $image = GalerieImage::findOrFail($id);
-        $image->is_visible = !$image->is_visible;
+        $image->is_visible = ! $image->is_visible;
         $image->save();
 
         return response()->json([
             'message' => 'Visibilité de l\'image changé !',
-            'data' => $image
+            'data' => $image,
         ]);
     }
 
@@ -153,9 +154,7 @@ class GalerieImageController extends Controller
     ");
 
         return response()->json([
-            'message' => 'Ordre mis à jour'
+            'message' => 'Ordre mis à jour',
         ]);
     }
-
 }
-

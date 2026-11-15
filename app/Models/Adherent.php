@@ -2,14 +2,11 @@
 
 namespace App\Models;
 
-
-use Illuminate\Foundation\Auth\User as Authenticatable;
-
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
-use Illuminate\Notifications\Notifiable;
-
 
 class Adherent extends Authenticatable
 {
@@ -24,7 +21,7 @@ class Adherent extends Authenticatable
         'password',
 
         'is_active',
-        'profile_completed'
+        'profile_completed',
     ];
 
     protected $hidden = [
@@ -53,7 +50,7 @@ class Adherent extends Authenticatable
     protected static function booted()
     {
         static::creating(function ($adherent) {
-            if (!$adherent->pseudo) {
+            if (! $adherent->pseudo) {
                 $adherent->pseudo = self::generatePseudo($adherent->nom, $adherent->prenom);
             }
         });
@@ -62,10 +59,9 @@ class Adherent extends Authenticatable
     public static function generatePseudo($nom, $prenom)
     {
         do {
-            $pseudo = Str::slug($prenom . '.' . $nom) . '.' . rand(1000, 9999);
+            $pseudo = Str::slug($prenom.'.'.$nom).'.'.rand(1000, 9999);
         } while (self::where('pseudo', $pseudo)->exists());
 
         return $pseudo;
     }
-
 }

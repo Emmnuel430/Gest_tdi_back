@@ -4,14 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreProfileRequest;
 use App\Http\Resources\AdherentResource;
+use App\Mail\AdherentValidatedMail;
+use App\Models\Adherent;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Mail;
-use App\Models\Adherent;
-use App\Mail\AdherentValidatedMail;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\ValidationException;
 
 class AdherentController extends Controller
@@ -20,7 +20,7 @@ class AdherentController extends Controller
     {
         $query = Adherent::with([
             'activeSubscription.plan',
-            'activeSubscription.transactions'
+            'activeSubscription.transactions',
         ])->orderByDesc('created_at');
 
         if ($request->has('page') || $request->has('per_page')) {
@@ -34,6 +34,7 @@ class AdherentController extends Controller
     {
         $adherent = Adherent::findOrFail($id);
         $adherent->delete();
+
         return response()->json(['status' => 'deleted', 'message' => 'Adhérent supprimé avec succès']);
     }
 
@@ -42,7 +43,7 @@ class AdherentController extends Controller
         $adherent = Adherent::findOrFail($id);
 
         // toggle
-        $adherent->is_active = !$adherent->is_active;
+        $adherent->is_active = ! $adherent->is_active;
         $adherent->save();
 
         // 📩 mail uniquement si validé
@@ -62,7 +63,7 @@ class AdherentController extends Controller
             'message' => $adherent->is_active
                 ? 'Compte activé'
                 : 'Compte désactivé',
-            'data' => $adherent
+            'data' => $adherent,
         ]);
     }
 
@@ -73,7 +74,7 @@ class AdherentController extends Controller
         $validated = $request->validate([
             'nom' => 'required|string|max:255',
             'prenom' => 'required|string|max:255',
-            'email' => 'required|email|unique:adherents,email,' . $adherent->id,
+            'email' => 'required|email|unique:adherents,email,'.$adherent->id,
             'contact' => 'nullable|string',
         ]);
 
@@ -82,13 +83,14 @@ class AdherentController extends Controller
 
         return response()->json([
             'message' => 'Adhérent mis à jour avec succès',
-            'data' => $adherent
+            'data' => $adherent,
         ]);
     }
 
     public function show($id)
     {
         $adherent = Adherent::with('profile')->findOrFail($id);
+
         return response()->json(['data' => $adherent]);
     }
 
@@ -101,11 +103,11 @@ class AdherentController extends Controller
 
         $adherent = Adherent::where('email', $request->email)->first();
 
-        if (!$adherent || !Hash::check($request->password, $adherent->password)) {
+        if (! $adherent || ! Hash::check($request->password, $adherent->password)) {
             return response()->json(['error' => 'Email ou mot de passe incorrect'], 401);
         }
 
-        if (!$adherent->is_active) {
+        if (! $adherent->is_active) {
             return response()->json(['message' => 'Ce compte n\'est pas valide ou a été désactivé. Contactez l\'administration si nécessaire.'], 403);
         }
         $adherent->load('activeSubscription.plan');
@@ -125,7 +127,7 @@ class AdherentController extends Controller
 
         return response()->json([
             'token' => $token,
-            'adherent' => new AdherentResource($adherent)
+            'adherent' => new AdherentResource($adherent),
         ])->withCookie($cookie);
     }
 
@@ -137,7 +139,7 @@ class AdherentController extends Controller
             $data = $request->validated();
 
             if ($request->filled('new_password')) {
-                if (!Hash::check($request->input('old_password'), $adherent->password)) {
+                if (! Hash::check($request->input('old_password'), $adherent->password)) {
                     throw ValidationException::withMessages([
                         'old_password' => ['Mot de passe actuel incorrect.'],
                     ]);
@@ -184,7 +186,7 @@ class AdherentController extends Controller
         $adherent = $request->user()->load(['profile', 'activeSubscription.plan']);
 
         return response()->json([
-            'adherent' => new AdherentResource($adherent)
+            'adherent' => new AdherentResource($adherent),
         ]);
     }
 }

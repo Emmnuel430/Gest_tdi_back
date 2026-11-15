@@ -3,14 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Page;
-use App\Models\Section;
 use App\Models\Subsection;
-use Illuminate\Http\Request;
-use Illuminate\Support\Str;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use HTMLPurifier;
 use HTMLPurifier_Config;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class PageController extends Controller
 {
@@ -22,13 +21,13 @@ class PageController extends Controller
 
         $query = Page::with([
             'sections.subsections' => function ($q) use ($isAdmin, $now) {
-                if (!$isAdmin) {
+                if (! $isAdmin) {
                     $q->where(function ($subQ) use ($now) {
                         $subQ->whereNull('publish_at')
                              ->orWhere('publish_at', '<=', $now);
                     });
                 }
-            }
+            },
         ])->orderByRaw('`order` IS NULL, `order` ASC');
 
         if ($request->has('page') || $request->has('per_page')) {
@@ -111,10 +110,11 @@ class PageController extends Controller
             $page->touch();
 
             DB::commit();
-            return response()->json(['message' => 'Page créée avec succès'], 201);
 
+            return response()->json(['message' => 'Page créée avec succès'], 201);
         } catch (\Throwable $e) {
             DB::rollBack();
+
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
@@ -130,7 +130,7 @@ class PageController extends Controller
             $page = Page::with('sections.subsections')->findOrFail($id);
             $pageId = $page->id;
 
-            if ($request->input('delete_main_image') === "1" && $page->main_image) {
+            if ($request->input('delete_main_image') === '1' && $page->main_image) {
                 Storage::disk('public')->delete($page->main_image);
                 $mainImagePath = null;
             } else {
@@ -159,7 +159,7 @@ class PageController extends Controller
 
                 $sectionImagePath = $section->image ?? null;
 
-                if ($request->input("sections.$i.delete_image") === "1") {
+                if ($request->input("sections.$i.delete_image") === '1') {
                     if ($sectionImagePath) {
                         Storage::disk('public')->delete($sectionImagePath);
                     }
@@ -204,7 +204,7 @@ class PageController extends Controller
 
                     $subImagePath = $sub->image ?? null;
 
-                    if ($request->input("sections.$i.subsections.$j.delete_image") === "1") {
+                    if ($request->input("sections.$i.subsections.$j.delete_image") === '1') {
                         if ($subImagePath) {
                             Storage::disk('public')->delete($subImagePath);
                         }
@@ -251,12 +251,14 @@ class PageController extends Controller
             }
 
             $page->sections()->whereNotIn('id', $sectionIdsToKeep)->each(function ($section) {
-                if ($section->image)
+                if ($section->image) {
                     Storage::disk('public')->delete($section->image);
+                }
 
                 $section->subsections->each(function ($sub) {
-                    if ($sub->image)
+                    if ($sub->image) {
                         Storage::disk('public')->delete($sub->image);
+                    }
                     $sub->delete();
                 });
 
@@ -279,9 +281,9 @@ class PageController extends Controller
             DB::commit();
 
             return response()->json(['message' => 'Page mise à jour avec succès']);
-
         } catch (\Throwable $e) {
             DB::rollBack();
+
             return response()->json(['error' => $e->getMessage()], 500);
         }
     }
@@ -292,7 +294,8 @@ class PageController extends Controller
         $page = Page::findOrFail($id);
         Storage::disk('public')->deleteDirectory("pages/page_{$page->id}");
         $page->delete();
-        return response()->json(['message' => 'Page supprimée avec succès', 'status' => "deleted"]);
+
+        return response()->json(['message' => 'Page supprimée avec succès', 'status' => 'deleted']);
     }
 
     // 🔎 Afficher une page par slug (pour le front)
@@ -306,7 +309,7 @@ class PageController extends Controller
                     $subQ->whereNull('publish_at')
                          ->orWhere('publish_at', '<=', $now);
                 });
-            }
+            },
         ])
             ->where('slug', $slug)
             ->firstOrFail();
@@ -322,13 +325,13 @@ class PageController extends Controller
 
         $page = Page::with([
             'sections.subsections' => function ($query) use ($isAdmin, $now) {
-                if (!$isAdmin) {
+                if (! $isAdmin) {
                     $query->where(function ($subQ) use ($now) {
                         $subQ->whereNull('publish_at')
                              ->orWhere('publish_at', '<=', $now);
                     });
                 }
-            }
+            },
         ])->findOrFail($id);
 
         return response()->json($page);

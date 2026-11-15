@@ -3,7 +3,6 @@
 namespace Tests\Feature;
 
 use App\Mail\PrayerRequestValidated;
-use App\Models\Adherent;
 use App\Models\Content;
 use App\Models\GalerieDossier;
 use App\Models\GalerieImage;
@@ -98,6 +97,7 @@ class TechnicalDebtNonRegressionTest extends TestCase
         $capturedPayload = null;
         Http::fake(function ($request) use (&$capturedPayload) {
             $capturedPayload = $request->data();
+
             return Http::response([
                 'status' => true,
                 'data' => ['authorization_url' => 'https://checkout.paystack.com/sub-test'],
@@ -241,7 +241,7 @@ class TechnicalDebtNonRegressionTest extends TestCase
         $payload = [
             'event' => 'charge.success',
             'data' => [
-                'reference' => 'PR_SECOND_' . uniqid(),
+                'reference' => 'PR_SECOND_'.uniqid(),
                 'amount' => 500000,
                 'currency' => 'XOF',
                 'status' => 'success',

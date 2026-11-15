@@ -2,12 +2,11 @@
 
 namespace Tests\Feature;
 
-use Tests\TestCase;
-use App\Models\Tsedaka;
-use App\Models\Transaction;
 use App\Mail\TsedakaThankYou;
-use Illuminate\Support\Facades\Mail;
+use App\Models\Transaction;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Mail;
+use Tests\TestCase;
 
 class PaystackWebhookTest extends TestCase
 {
@@ -17,7 +16,7 @@ class PaystackWebhookTest extends TestCase
     {
         $response = $this->postJson('/api/payments/webhook', [
             'event' => 'charge.success',
-            'data' => ['reference' => 'TEST_REF_123']
+            'data' => ['reference' => 'TEST_REF_123'],
         ]);
 
         $response->assertStatus(401);
@@ -47,7 +46,7 @@ class PaystackWebhookTest extends TestCase
         $secret = 'test_secret_key_12345';
         config(['services.paystack.secret_key' => $secret]);
 
-        $reference = 'TS_TEST_' . uniqid();
+        $reference = 'TS_TEST_'.uniqid();
         $payload = [
             'event' => 'charge.success',
             'data' => [
@@ -65,9 +64,9 @@ class PaystackWebhookTest extends TestCase
                         'montant' => 1000,
                         'anonymous' => false,
                         'message' => 'Pour la communauté',
-                    ]
-                ]
-            ]
+                    ],
+                ],
+            ],
         ];
 
         $rawBody = json_encode($payload);

@@ -9,7 +9,6 @@ use App\Mail\TsedakaThankYou;
 use App\Models\DailyVisit;
 use App\Models\Order;
 use App\Models\Page;
-use App\Models\PrayerRequest;
 use App\Models\Section;
 use App\Models\Subsection;
 use App\Models\Tsedaka;
@@ -69,7 +68,7 @@ class CahierDesModificationsTest extends TestCase
             'order' => 1,
         ]);
 
-        $reference = 'BOUTIQUE_REF_' . uniqid();
+        $reference = 'BOUTIQUE_REF_'.uniqid();
 
         $response = $this->sendSignedWebhook([
             'event' => 'charge.success',
@@ -132,7 +131,7 @@ class CahierDesModificationsTest extends TestCase
             'order' => 1,
         ]);
 
-        $reference = 'BIBLIO_REF_' . uniqid();
+        $reference = 'BIBLIO_REF_'.uniqid();
 
         $response = $this->sendSignedWebhook([
             'event' => 'charge.success',
@@ -185,7 +184,7 @@ class CahierDesModificationsTest extends TestCase
         Mail::fake();
 
         // Cas 3 : Paiement échoué
-        $failedRef = 'FAILED_REF_' . uniqid();
+        $failedRef = 'FAILED_REF_'.uniqid();
         $failedResp = $this->sendSignedWebhook([
             'event' => 'charge.success',
             'data' => [
@@ -212,7 +211,7 @@ class CahierDesModificationsTest extends TestCase
             'order' => 1,
         ]);
 
-        $reference = 'DEDUP_REF_' . uniqid();
+        $reference = 'DEDUP_REF_'.uniqid();
         $payload = [
             'event' => 'charge.success',
             'data' => [
@@ -260,7 +259,7 @@ class CahierDesModificationsTest extends TestCase
         Sanctum::actingAs($admin);
 
         // 1. Paiement d'une demande de prière (3 000 FCFA) + Tsedaka en bas de formulaire (2 000 FCFA)
-        $prayerRef = 'PR_BO_' . uniqid();
+        $prayerRef = 'PR_BO_'.uniqid();
         $this->sendSignedWebhook([
             'event' => 'charge.success',
             'data' => [
@@ -285,7 +284,7 @@ class CahierDesModificationsTest extends TestCase
         ])->assertStatus(200);
 
         // 2. Paiement d'un don Tsedaka direct (4 500 FCFA)
-        $tsedakaRef = 'TS_BO_' . uniqid();
+        $tsedakaRef = 'TS_BO_'.uniqid();
         $this->sendSignedWebhook([
             'event' => 'charge.success',
             'data' => [
@@ -325,7 +324,7 @@ class CahierDesModificationsTest extends TestCase
 
         $tsedakaReferences = collect($tsedakasResp->json('data'))->pluck('reference')->all();
         $this->assertContains($tsedakaRef, $tsedakaReferences);
-        $this->assertContains($prayerRef . '-TSEDAKA', $tsedakaReferences);
+        $this->assertContains($prayerRef.'-TSEDAKA', $tsedakaReferences);
 
         Mail::assertSent(PrayerRequestValidated::class);
         Mail::assertSent(TsedakaThankYou::class);
@@ -340,6 +339,7 @@ class CahierDesModificationsTest extends TestCase
         Http::fake(function ($request) use (&$capturedAmounts) {
             $data = $request->data();
             $capturedAmounts[] = $data['amount'] ?? null;
+
             return Http::response([
                 'status' => true,
                 'data' => ['authorization_url' => 'https://checkout.paystack.com/test-min-2000'],

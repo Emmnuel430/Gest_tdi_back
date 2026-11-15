@@ -8,6 +8,6 @@ use Illuminate\Database\Eloquent\Model;
 class DailyVisit extends Model
 {
     use HasFactory;
-    protected $fillable = ['date', 'count'];
 
+    protected $fillable = ['date', 'count'];
 }

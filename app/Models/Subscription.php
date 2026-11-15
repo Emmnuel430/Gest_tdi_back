@@ -19,6 +19,7 @@ class Subscription extends Model
         'next_payment_at',
         'remaining_months',
     ];
+
     protected $guarded = ['starts_at'];
 
     protected $casts = [
@@ -54,7 +55,7 @@ class Subscription extends Model
     public function isActive()
     {
         return $this->status === 'active'
-            && (!$this->ends_at || $this->ends_at >= now());
+            && (! $this->ends_at || $this->ends_at >= now());
     }
 
     // abonnement expiré ?
@@ -82,8 +83,9 @@ class Subscription extends Model
      */
     public function decrementStudentMonth()
     {
-        if ($this->remaining_months === null)
+        if ($this->remaining_months === null) {
             return;
+        }
 
         $this->remaining_months--;
 
@@ -108,7 +110,6 @@ class Subscription extends Model
         if ($plan->is_student_plan) {
             $data['remaining_months'] = $plan->total_payments;
             $data['ends_at'] = now()->endOfYear();
-
         } else {
             $data['ends_at'] = now()->addMonth();
         }

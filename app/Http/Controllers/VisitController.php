@@ -25,7 +25,7 @@ class VisitController extends Controller
             case 'day':
                 $data = DailyVisit::whereBetween('date', [now()->startOfWeek(), now()->endOfWeek()])
                     ->orderBy('date')->get();
-                $labels = $data->map(fn($v) => \Carbon\Carbon::parse($v->date)->format('d-m'))->toArray();
+                $labels = $data->map(fn ($v) => \Carbon\Carbon::parse($v->date)->format('d-m'))->toArray();
                 $counts = $data->pluck('count')->toArray();
                 break;
 
@@ -37,7 +37,7 @@ class VisitController extends Controller
                     ->orderBy('month')
                     ->get();
 
-                $labels = $data->map(fn($v) => \Carbon\Carbon::create()->month($v->month)->translatedFormat('F'))->toArray();
+                $labels = $data->map(fn ($v) => \Carbon\Carbon::create()->month($v->month)->translatedFormat('F'))->toArray();
                 $counts = $data->pluck('total')->toArray();
                 break;
 
@@ -61,14 +61,14 @@ class VisitController extends Controller
                 // ⚡ 1 seule requête SQL pour tout le mois au lieu de N requêtes dans la boucle
                 $dailyVisits = DailyVisit::whereBetween('date', [
                     $startOfMonth->toDateString(),
-                    $endOfMonth->toDateString()
+                    $endOfMonth->toDateString(),
                 ])->pluck('count', 'date');
 
                 $current = $startOfMonth->copy();
 
                 while ($current <= $endOfMonth) {
                     $weekEnd = $current->copy()->endOfWeek()->min($endOfMonth);
-                    $labels[] = $current->format('d/m') . ' → ' . $weekEnd->format('d/m');
+                    $labels[] = $current->format('d/m').' → '.$weekEnd->format('d/m');
 
                     $weekSum = 0;
                     $dayIter = $current->copy();
@@ -81,8 +81,6 @@ class VisitController extends Controller
                     $current = $weekEnd->copy()->addDay();
                 }
                 break;
-
-
         }
 
         return response()->json([
@@ -90,10 +88,9 @@ class VisitController extends Controller
             'total' => $total,
             'labels' => $labels,
             'counts' => $counts,
-            'period' => $period
+            'period' => $period,
         ]);
     }
-
 
     // Données pour graphique (optimisées et bornées aux 12 derniers mois)
     public function chart(Request $request)
@@ -106,7 +103,6 @@ class VisitController extends Controller
         return response()->json($data);
     }
 
-
     public function track(Request $request)
     {
         $today = now()->toDateString();
@@ -115,8 +111,8 @@ class VisitController extends Controller
         $visitorId = $request->input('visitor_id');
         $identifier = $visitorId
             ? "vid:{$visitorId}"
-            : (($request->ip() ?? '0.0.0.0') . '|' . ($request->userAgent() ?? 'unknown'));
-        $cacheKey = "visit_" . md5($identifier) . "_{$today}";
+            : (($request->ip() ?? '0.0.0.0').'|'.($request->userAgent() ?? 'unknown'));
+        $cacheKey = 'visit_'.md5($identifier)."_{$today}";
 
         // ✅ 1. Check cache AVANT DB (ultra important perf : 1 seul comptage par visiteur unique et par jour)
         if (Cache::has($cacheKey)) {

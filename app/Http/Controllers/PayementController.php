@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Actions\HandleCartPayment;
@@ -26,13 +27,14 @@ class PayementController extends Controller
             'cart' => [
                 'cart_details' => collect($request->cart ?? [])->map(function ($item) {
                     $sub = Subsection::find($item['product_id'] ?? null);
+
                     return [
                         'product_id' => (int) ($item['product_id'] ?? 0),
                         'title' => $sub ? $sub->title : ($item['title'] ?? 'Article'),
                         'price' => $sub && $sub->prix !== null ? (float) $sub->prix : (float) ($item['price'] ?? 0),
                         'quantity' => (int) ($item['quantity'] ?? 1),
                         'type' => $sub ? $sub->type : ($item['type'] ?? null),
-                        'image' => $item['image'] ?? ($sub && $sub->image ? asset('storage/' . $sub->image) : null),
+                        'image' => $item['image'] ?? ($sub && $sub->image ? asset('storage/'.$sub->image) : null),
                         'itemFrom' => $item['itemFrom'] ?? null,
                     ];
                 })->values()->all(),
@@ -67,11 +69,12 @@ class PayementController extends Controller
                 $total = 0.0;
                 foreach ($cartItems as $item) {
                     $sub = $subsections->get($item['product_id']);
-                    if (!$sub || $sub->prix === null || (float) $sub->prix <= 0) {
-                        throw new \InvalidArgumentException("Article invalide ou prix indisponible.");
+                    if (! $sub || $sub->prix === null || (float) $sub->prix <= 0) {
+                        throw new \InvalidArgumentException('Article invalide ou prix indisponible.');
                     }
                     $total += ((float) $sub->prix) * ((int) $item['quantity']);
                 }
+
                 return $total;
             })(),
             'subscription' => (function () use ($request, $paymentStep) {
@@ -81,21 +84,24 @@ class PayementController extends Controller
                         ? (float) $plan->monthly_price
                         : (float) $plan->registration_fee;
                 }
+
                 return (float) $plan->price;
             })(),
             'prayer-request' => (function () use ($request) {
                 $montant = (float) ($request->montant ?? 0);
                 $montantTsedaka = (float) ($request->montant_tsedaka ?? 0);
                 if ($montant < 2000 || $montantTsedaka < 0) {
-                    throw new \InvalidArgumentException("Le montant minimum pour une demande de prière est de 2 000 FCFA.");
+                    throw new \InvalidArgumentException('Le montant minimum pour une demande de prière est de 2 000 FCFA.');
                 }
+
                 return $montant + $montantTsedaka;
             })(),
             'tsedaka' => (function () use ($request) {
                 $montant = (float) ($request->montant ?? 0);
                 if ($montant < 2000) {
-                    throw new \InvalidArgumentException("Le montant minimum pour un don (Tsedaka) est de 2 000 FCFA.");
+                    throw new \InvalidArgumentException('Le montant minimum pour un don (Tsedaka) est de 2 000 FCFA.');
                 }
+
                 return $montant;
             })(),
             default => 0.0,
@@ -107,12 +113,11 @@ class PayementController extends Controller
         $paymentStep = $request->payment_step ?? 'full';
 
         if ($request->type === 'subscription') {
-
             $exists = Adherent::where('email', $request->email)->exists();
 
             if (in_array($paymentStep, ['registration', 'full']) && $exists) {
                 return response()->json([
-                    'message' => 'Compte déjà existant.'
+                    'message' => 'Compte déjà existant.',
                 ], 422);
             }
         }
@@ -121,26 +126,25 @@ class PayementController extends Controller
             $expectedAmount = $this->calculateExpectedAmount($request, $paymentStep);
         } catch (\InvalidArgumentException $e) {
             return response()->json([
-                'message' => $e->getMessage()
+                'message' => $e->getMessage(),
             ], 422);
         }
 
         if ($expectedAmount <= 0 || abs(((float) $request->totalPrice) - $expectedAmount) > 0.01) {
             return response()->json([
-                'message' => 'Montant du paiement invalide ou falsifié.'
+                'message' => 'Montant du paiement invalide ou falsifié.',
             ], 422);
         }
 
         try {
             return DB::transaction(function () use ($request, $expectedAmount) {
-
                 $reference = Str::uuid()->toString();
 
                 // 🔒 Dette #02 : Ne jamais transmettre de hash de mot de passe à Paystack
                 if ($request->filled('password') && $request->password !== 'null') {
                     $hashedPassword = bcrypt($request->password);
                     Cache::put("pending_sub_pwd_{$reference}", $hashedPassword, now()->addHours(24));
-                    Cache::put("pending_sub_pwd_email_" . md5(strtolower($request->email)), $hashedPassword, now()->addHours(24));
+                    Cache::put('pending_sub_pwd_email_'.md5(strtolower($request->email)), $hashedPassword, now()->addHours(24));
                 }
 
                 $customFields = $this->getCustomFields($request);
@@ -162,7 +166,7 @@ class PayementController extends Controller
                     $metadata['payment_index'] = $request->payment_index;
                 }
 
-                $callbackUrl = $request->callback_url ?? config('app.frontend_url') . '/payment/callback';
+                $callbackUrl = $request->callback_url ?? config('app.frontend_url').'/payment/callback';
                 $response = Http::withToken(config('services.paystack.secret_key'))
                     ->post('https://api.paystack.co/transaction/initialize', [
                         'email' => $request->email,
@@ -170,10 +174,10 @@ class PayementController extends Controller
                         'currency' => 'XOF',
                         'reference' => $reference,
                         'callback_url' => $callbackUrl,
-                        'metadata' => $metadata
+                        'metadata' => $metadata,
                     ]);
 
-                if (!$response->successful()) {
+                if (! $response->successful()) {
                     throw new \Exception('Paystack Error');
                 }
 
@@ -182,13 +186,11 @@ class PayementController extends Controller
                     'reference' => $reference,
                 ]);
             });
-
         } catch (\Throwable $e) {
-
-            \Log::error('Payment initiate error: ' . $e->getMessage());
+            \Log::error('Payment initiate error: '.$e->getMessage());
 
             return response()->json([
-                'message' => 'Erreur initiation'
+                'message' => 'Erreur initiation',
             ], 500);
         }
     }
@@ -221,7 +223,7 @@ class PayementController extends Controller
                 'currency' => $data['currency'] ?? 'XOF',
                 'status' => 'success',
                 'nom' => trim(
-                    ($metadata['nom'] ?? '') . ' ' . ($metadata['prenom'] ?? '')
+                    ($metadata['nom'] ?? '').' '.($metadata['prenom'] ?? '')
                 ) ?: 'Client N/A',
                 'email' => $data['customer']['email'] ?? null,
                 'numero' => $metadata['numero'] ?? null,
@@ -244,7 +246,7 @@ class PayementController extends Controller
             } else {
                 Log::warning("Paystack : Type de paiement non géré : {$type}", [
                     'reference' => $reference,
-                    'metadata' => $metadata
+                    'metadata' => $metadata,
                 ]);
             }
 
@@ -260,7 +262,6 @@ class PayementController extends Controller
     {
         // 🔒 Verrou de sécurité (évite les race conditions avec webhook)
         return Cache::lock("payment_{$reference}", 15)->get(function () use ($reference) {
-
             if (Transaction::where('reference', $reference)->exists()) {
                 return response()->json(['message' => 'Déjà traité', 'status' => 'ok']);
             }
@@ -269,7 +270,7 @@ class PayementController extends Controller
                 $response = Http::withToken(config('services.paystack.secret_key'))
                     ->get("https://api.paystack.co/transaction/verify/{$reference}");
 
-                if (!$response->successful() || !$response->json('status')) {
+                if (! $response->successful() || ! $response->json('status')) {
                     return response()->json(['error' => 'Échec de vérification Paystack'], 400);
                 }
 
@@ -283,14 +284,14 @@ class PayementController extends Controller
 
                 if (is_array($result) && ($result['status'] ?? null) === 'error') {
                     return response()->json([
-                        'message' => $result['message']
+                        'message' => $result['message'],
                     ], $result['code'] ?? 400);
                 }
 
                 return response()->json($result);
-
             } catch (\Exception $e) {
-                Log::error("Erreur Paystack verify: " . $e->getMessage());
+                Log::error('Erreur Paystack verify: '.$e->getMessage());
+
                 return response()->json(['error' => 'Erreur serveur'], 500);
             }
         });
@@ -337,7 +338,7 @@ class PayementController extends Controller
             return response()->json(['status' => 'not_success'], 200);
         }
 
-        if (!$reference) {
+        if (! $reference) {
             return response()->json(['error' => 'Missing reference'], 400);
         }
 
@@ -350,6 +351,7 @@ class PayementController extends Controller
                         'processed_at' => now(),
                     ]);
                 }
+
                 return response()->json(['status' => 'already_processed'], 200);
             }
 
@@ -365,7 +367,7 @@ class PayementController extends Controller
 
                 return response()->json($result, 200);
             } catch (\Throwable $e) {
-                Log::error("Erreur exécution Paystack webhook : " . $e->getMessage(), [
+                Log::error('Erreur exécution Paystack webhook : '.$e->getMessage(), [
                     'reference' => $reference,
                 ]);
 

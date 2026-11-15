@@ -56,7 +56,7 @@ class InitiatePaymentRequest extends FormRequest
                 'nullable', // Autorise explicitement la valeur null
                 'string',
                 // Requis uniquement pour une nouvelle inscription (registration ou full)
-                Rule::requiredIf(fn() => in_array($this->payment_step, ['registration', 'full']))
+                Rule::requiredIf(fn () => in_array($this->payment_step, ['registration', 'full'])),
             ],
 
             'message' => 'required_if:type,prayer-request|nullable|string',

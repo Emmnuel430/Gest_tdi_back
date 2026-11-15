@@ -10,9 +10,11 @@ class Section extends Model
     use HasFactory;
 
     protected $fillable = ['page_id', 'title', 'subtitle', 'image', 'order', 'is_visible'];
+
     protected $casts = [
         'is_visible' => 'boolean',
     ];
+
     protected $touches = ['page'];
 
     public function page()

@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use App\Models\Transaction;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class TransactionController extends Controller
@@ -38,7 +38,7 @@ class TransactionController extends Controller
     public function changeStatus(Request $request, $id)
     {
         $request->validate([
-            'status' => 'required|in:success,failed,refunded'
+            'status' => 'required|in:success,failed,refunded',
         ]);
 
         $transaction = Transaction::findOrFail($id);
@@ -46,17 +46,17 @@ class TransactionController extends Controller
         // Optionnel : empêcher modification si déjà remboursé
         if ($transaction->status === 'refunded') {
             return response()->json([
-                'message' => 'Transaction déjà remboursée'
+                'message' => 'Transaction déjà remboursée',
             ], 400);
         }
 
         $transaction->update([
-            'status' => $request->status
+            'status' => $request->status,
         ]);
 
         return response()->json([
             'message' => 'Statut mis à jour',
-            'transaction' => $transaction
+            'transaction' => $transaction,
         ]);
     }
 
@@ -90,7 +90,7 @@ class TransactionController extends Controller
         )
             ->whereBetween('created_at', [
                 now()->subYear(),
-                now()
+                now(),
             ])
             ->where('status', 'success')
             ->groupBy('month', 'type')

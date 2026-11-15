@@ -13,10 +13,10 @@ class AttachTokenFromCookie
      */
     public function handle(Request $request, Closure $next)
     {
-        if (!$request->bearerToken() && $request->hasCookie('auth_token')) {
+        if (! $request->bearerToken() && $request->hasCookie('auth_token')) {
             $token = $request->cookie('auth_token');
             if (is_string($token) && $token !== '') {
-                $request->headers->set('Authorization', 'Bearer ' . $token);
+                $request->headers->set('Authorization', 'Bearer '.$token);
             }
         }
 

@@ -34,11 +34,12 @@ class ReconcilePaystackDonations extends Command
      */
     public function handle()
     {
-        $this->info("Début de la réconciliation des dons Paystack...");
+        $this->info('Début de la réconciliation des dons Paystack...');
 
         $secret = config('services.paystack.secret_key');
-        if (!$secret) {
-            $this->error("Clé secrète Paystack manquante (services.paystack.secret_key).");
+        if (! $secret) {
+            $this->error('Clé secrète Paystack manquante (services.paystack.secret_key).');
+
             return 1;
         }
 
@@ -46,18 +47,19 @@ class ReconcilePaystackDonations extends Command
 
         try {
             $response = Http::withToken($secret)
-                ->get("https://api.paystack.co/transaction", [
+                ->get('https://api.paystack.co/transaction', [
                     'status' => 'success',
                     'perPage' => $perPage,
                 ]);
 
-            if (!$response->successful()) {
-                $this->error("Échec de communication avec Paystack API: " . $response->body());
+            if (! $response->successful()) {
+                $this->error('Échec de communication avec Paystack API: '.$response->body());
+
                 return 1;
             }
 
             $transactions = $response->json('data') ?? [];
-            $this->info(count($transactions) . " transactions récupérées depuis Paystack.");
+            $this->info(count($transactions).' transactions récupérées depuis Paystack.');
 
             $syncedCount = 0;
             $alreadyCount = 0;
@@ -66,7 +68,7 @@ class ReconcilePaystackDonations extends Command
                 $metadata = $tx['metadata'] ?? [];
                 $type = $metadata['type'] ?? null;
 
-                if (!in_array($type, ['tsedaka', 'prayer-request'], true)) {
+                if (! in_array($type, ['tsedaka', 'prayer-request'], true)) {
                     continue;
                 }
 
@@ -78,6 +80,7 @@ class ReconcilePaystackDonations extends Command
 
                 if ($exists) {
                     $alreadyCount++;
+
                     continue;
                 }
 
@@ -88,7 +91,7 @@ class ReconcilePaystackDonations extends Command
                         'amount' => $tx['amount'] / 100,
                         'currency' => $tx['currency'] ?? 'XOF',
                         'status' => 'success',
-                        'nom' => trim(($metadata['nom'] ?? '') . ' ' . ($metadata['prenom'] ?? '')) ?: 'Client N/A',
+                        'nom' => trim(($metadata['nom'] ?? '').' '.($metadata['prenom'] ?? '')) ?: 'Client N/A',
                         'email' => $tx['customer']['email'] ?? null,
                         'numero' => $metadata['numero'] ?? null,
                         'type' => $type,
@@ -102,10 +105,10 @@ class ReconcilePaystackDonations extends Command
                 });
 
                 $syncedCount++;
-                $this->line("✅ Transaction ({$type}) synchronisée : Réf [{$reference}] - Montant : " . ($tx['amount'] / 100) . " XOF");
+                $this->line("✅ Transaction ({$type}) synchronisée : Réf [{$reference}] - Montant : ".($tx['amount'] / 100).' XOF');
             }
 
-            $this->info("Réconciliation terminée avec succès !");
+            $this->info('Réconciliation terminée avec succès !');
             $this->table(
                 ['Statut', 'Nombre'],
                 [
@@ -115,10 +118,10 @@ class ReconcilePaystackDonations extends Command
             );
 
             return 0;
-
         } catch (\Throwable $e) {
-            $this->error("Erreur durant la réconciliation: " . $e->getMessage());
-            Log::error("Erreur ReconcilePaystackDonations: " . $e->getMessage());
+            $this->error('Erreur durant la réconciliation: '.$e->getMessage());
+            Log::error('Erreur ReconcilePaystackDonations: '.$e->getMessage());
+
             return 1;
         }
     }

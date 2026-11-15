@@ -14,7 +14,7 @@ class GalerieDossierController extends Controller
         $counter = 1;
 
         while (GalerieDossier::where('nom', $nom)->exists()) {
-            $nom = $original . ' (' . $counter . ')';
+            $nom = $original.' ('.$counter.')';
             $counter++;
         }
 
@@ -35,9 +35,10 @@ class GalerieDossierController extends Controller
             'nom' => $nom,
             'description' => $request->description,
         ]);
+
         return response()->json([
             'message' => 'Dossier créé avec succès',
-            'data' => $dossier
+            'data' => $dossier,
         ], 201);
     }
 
@@ -59,12 +60,12 @@ class GalerieDossierController extends Controller
                     $query->where('is_visible', true)
                         ->with('media')
                         ->orderBy('ordre');
-                }
+                },
             ])
             ->withCount([
                 'images' => function ($query) {
                     $query->where('is_visible', true);
-                }
+                },
             ])
             ->latest()
             ->get();
@@ -112,19 +113,19 @@ class GalerieDossierController extends Controller
         GalerieDossier::whereIn('id', $request->ids)->delete();
 
         return response()->json([
-            'message' => count($request->ids) . ' dossier(s) supprimé(s)'
+            'message' => count($request->ids).' dossier(s) supprimé(s)',
         ]);
     }
 
     public function toggleDossier($id)
     {
         $dossier = GalerieDossier::findOrFail($id);
-        $dossier->is_visible = !$dossier->is_visible;
+        $dossier->is_visible = ! $dossier->is_visible;
         $dossier->save();
 
         return response()->json([
             'message' => 'Visibilité du dossier changé !',
-            'data' => $dossier
+            'data' => $dossier,
         ]);
     }
 }

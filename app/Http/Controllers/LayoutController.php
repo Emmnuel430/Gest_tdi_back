@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Models\Layout;
@@ -17,6 +18,7 @@ class LayoutController extends Controller
     public function show($id)
     {
         $layout = Layout::findOrFail($id);
+
         return response()->json($layout);
     }
 
@@ -84,4 +86,3 @@ class LayoutController extends Controller
         return response()->json(['statut' => 'deleted', 'message' => 'Layout supprimé.']);
     }
 }
-

@@ -42,7 +42,7 @@ class ContentController extends Controller
             case 'plans':
                 if (empty($planIds)) {
                     return response()->json([
-                        'message' => 'Veuillez sélectionner au moins un plan.'
+                        'message' => 'Veuillez sélectionner au moins un plan.',
                     ], 422);
                 }
                 $isPublic = false;
@@ -62,13 +62,13 @@ class ContentController extends Controller
 
         $content = Content::create($data);
 
-        if (!empty($planIds)) {
+        if (! empty($planIds)) {
             $content->plans()->sync($planIds);
         }
 
         return response()->json([
             'message' => 'Contenu ajouté !',
-            'data' => $content->load('plans')
+            'data' => $content->load('plans'),
         ]);
     }
 
@@ -81,7 +81,7 @@ class ContentController extends Controller
             'type' => 'required|in:formation,cours,evenement',
             'content' => 'nullable|string',
             'lien' => 'nullable|url',
-            'publish_at' => ['nullable', 'date', 'after_or_equal:' . $minDate],
+            'publish_at' => ['nullable', 'date', 'after_or_equal:'.$minDate],
 
             'visibility' => 'required|in:public,students,plans',
 
@@ -107,7 +107,7 @@ class ContentController extends Controller
             case 'plans':
                 if (empty($planIds)) {
                     return response()->json([
-                        'message' => 'Veuillez sélectionner au moins un plan.'
+                        'message' => 'Veuillez sélectionner au moins un plan.',
                     ], 422);
                 }
                 $isPublic = false;
@@ -132,7 +132,7 @@ class ContentController extends Controller
 
         return response()->json([
             'message' => 'Contenu mis à jour avec succès !',
-            'data' => $content->load('plans')
+            'data' => $content->load('plans'),
         ]);
     }
 
@@ -153,6 +153,7 @@ class ContentController extends Controller
     public function show($id)
     {
         $content = Content::with('plans')->findOrFail($id);
+
         return response()->json(['data' => $content]);
     }
 
@@ -160,6 +161,7 @@ class ContentController extends Controller
     {
         $content = Content::findOrFail($id);
         $content->delete();
+
         return response()->json(['status' => 'deleted', 'message' => 'Contenu supprimé avec succès !']);
     }
 
@@ -179,7 +181,7 @@ class ContentController extends Controller
         $query->where(function ($q) use ($activePlanIds, $isAStudentPlan) {
             $q->where('is_public', true);
 
-            if (!empty($activePlanIds)) {
+            if (! empty($activePlanIds)) {
                 $q->orWhereHas('plans', function ($q2) use ($activePlanIds) {
                     $q2->whereIn('subscription_plans.id', $activePlanIds);
                 });

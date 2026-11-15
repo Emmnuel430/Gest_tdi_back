@@ -21,7 +21,7 @@ class TsedakaThankYou extends Mailable
     public function build()
     {
         return $this
-            ->subject("Merci pour votre don 🙏")
+            ->subject('Merci pour votre don 🙏')
             ->view('emails.tsedaka.thankyou')
             ->text('emails.tsedaka.thankyou_plain');
     }

@@ -1,8 +1,9 @@
 <?php
+
 namespace App\Actions;
 
-use App\Models\Tsedaka;
 use App\Mail\TsedakaThankYou;
+use App\Models\Tsedaka;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -48,7 +49,7 @@ class HandleTsedaka
                     Mail::to($tsedaka->email)->send(new TsedakaThankYou($tsedaka));
                 }
             } catch (\Throwable $e) {
-                Log::warning('Tsedaka confirmation mail failed: ' . $e->getMessage());
+                Log::warning('Tsedaka confirmation mail failed: '.$e->getMessage());
             }
         })->afterResponse();
     }

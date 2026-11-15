@@ -15,7 +15,6 @@ class SubscriptionPlanController extends Controller
 
         // nettoyage logique
         switch ($data['billing_type']) {
-
             case 'monthly':
                 $data['registration_fee'] = null;
                 $data['monthly_price'] = null;
@@ -38,7 +37,7 @@ class SubscriptionPlanController extends Controller
 
         return response()->json([
             'message' => 'Plan créé',
-            'data' => $plan
+            'data' => $plan,
         ], 201);
     }
 
@@ -56,7 +55,6 @@ class SubscriptionPlanController extends Controller
         */
 
         switch ($data['billing_type']) {
-
             case 'monthly':
                 $data['registration_fee'] = null;
                 $data['monthly_price'] = null;
@@ -79,7 +77,7 @@ class SubscriptionPlanController extends Controller
 
         return response()->json([
             'message' => 'Plan mis à jour avec succès',
-            'data' => $plan
+            'data' => $plan,
         ]);
     }
 
@@ -101,7 +99,7 @@ class SubscriptionPlanController extends Controller
                 'current_page' => $plans->currentPage(),
                 'last_page' => $plans->lastPage(),
                 'total' => $plans->total(),
-            ]
+            ],
         ]);
     }
 
@@ -123,14 +121,14 @@ class SubscriptionPlanController extends Controller
 
         if ($plan->subscriptions()->exists()) {
             return response()->json([
-                'message' => 'Impossible de supprimer un plan déjà utilisé'
+                'message' => 'Impossible de supprimer un plan déjà utilisé',
             ], 400);
         }
 
         $plan->delete();
 
         return response()->json([
-            'message' => 'Plan supprimé avec succès'
+            'message' => 'Plan supprimé avec succès',
         ]);
     }
 }

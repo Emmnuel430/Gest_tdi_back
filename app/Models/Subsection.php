@@ -20,8 +20,9 @@ class Subsection extends Model
         'order',
         'date',
         'prix',
-        'publish_at'
+        'publish_at',
     ];
+
     protected $touches = ['section'];
 
     public function section()

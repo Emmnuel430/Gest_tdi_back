@@ -1,8 +1,9 @@
 <?php
+
 namespace App\Actions;
 
-use App\Models\PrayerRequest;
 use App\Mail\PrayerRequestValidated;
+use App\Models\PrayerRequest;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
@@ -49,8 +50,8 @@ class HandlePrayerRequest
         // Si le fidèle a également renseigné un montant de Tsedaka en bas du formulaire de demande de prière
         $montantTsedaka = (float) ($customFields['montant_tsedaka'] ?? $metadata['montant_tsedaka'] ?? 0);
         if ($montantTsedaka > 0) {
-            $tsedakaRef = $transaction->reference . '-TSEDAKA';
-            if (!\App\Models\Tsedaka::where('reference', $tsedakaRef)->exists()) {
+            $tsedakaRef = $transaction->reference.'-TSEDAKA';
+            if (! \App\Models\Tsedaka::where('reference', $tsedakaRef)->exists()) {
                 \App\Models\Tsedaka::create([
                     'reference' => $tsedakaRef,
                     'nom' => $nom,
@@ -70,7 +71,7 @@ class HandlePrayerRequest
                     Mail::to($prayer->email)->send(new PrayerRequestValidated($prayer));
                 }
             } catch (\Throwable $e) {
-                Log::warning('Prayer request confirmation mail failed: ' . $e->getMessage());
+                Log::warning('Prayer request confirmation mail failed: '.$e->getMessage());
             }
         })->afterResponse();
     }
