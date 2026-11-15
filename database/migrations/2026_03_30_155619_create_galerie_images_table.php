@@ -4,7 +4,8 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-return new class extends Migration {
+return new class extends Migration
+{
     /**
      * Run the migrations.
      *
@@ -26,7 +27,6 @@ return new class extends Migration {
             $table->string('titre')->nullable();
             $table->boolean('is_visible')->default(true);
             $table->integer('ordre')->default(0);
-
 
             $table->timestamps();
             $table->unique(['dossier_id', 'media_id']);

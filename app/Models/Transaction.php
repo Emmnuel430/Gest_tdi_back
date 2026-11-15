@@ -19,8 +19,8 @@ class Transaction extends Model
         'numero',
         'type',
 
-        "payment_step",
-        "payment_index",
+        'payment_step',
+        'payment_index',
 
         'metadata',
     ];

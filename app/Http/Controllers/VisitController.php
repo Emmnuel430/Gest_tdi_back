@@ -25,7 +25,7 @@ class VisitController extends Controller
             case 'day':
                 $data = DailyVisit::whereBetween('date', [now()->startOfWeek(), now()->endOfWeek()])
                     ->orderBy('date')->get();
-                $labels = $data->map(fn($v) => \Carbon\Carbon::parse($v->date)->format('d-m'))->toArray();
+                $labels = $data->map(fn ($v) => \Carbon\Carbon::parse($v->date)->format('d-m'))->toArray();
                 $counts = $data->pluck('count')->toArray();
                 break;
 
@@ -37,7 +37,7 @@ class VisitController extends Controller
                     ->orderBy('month')
                     ->get();
 
-                $labels = $data->map(fn($v) => \Carbon\Carbon::create()->month($v->month)->translatedFormat('F'))->toArray();
+                $labels = $data->map(fn ($v) => \Carbon\Carbon::create()->month($v->month)->translatedFormat('F'))->toArray();
                 $counts = $data->pluck('total')->toArray();
                 break;
 
@@ -58,27 +58,29 @@ class VisitController extends Controller
                 $startOfMonth = now()->startOfMonth();
                 $endOfMonth = now()->endOfMonth();
 
+                // ⚡ 1 seule requête SQL pour tout le mois au lieu de N requêtes dans la boucle
+                $dailyVisits = DailyVisit::whereBetween('date', [
+                    $startOfMonth->toDateString(),
+                    $endOfMonth->toDateString(),
+                ])->pluck('count', 'date');
+
                 $current = $startOfMonth->copy();
 
                 while ($current <= $endOfMonth) {
-                    // La fin est soit le dimanche suivant, soit la fin du mois
                     $weekEnd = $current->copy()->endOfWeek()->min($endOfMonth);
+                    $labels[] = $current->format('d/m').' → '.$weekEnd->format('d/m');
 
-                    // Label clair
-                    $labels[] = $current->format('d/m') . ' → ' . $weekEnd->format('d/m');
+                    $weekSum = 0;
+                    $dayIter = $current->copy();
+                    while ($dayIter <= $weekEnd) {
+                        $weekSum += $dailyVisits[$dayIter->toDateString()] ?? 0;
+                        $dayIter->addDay();
+                    }
 
-                    // On somme bien TOUS les jours inclus
-                    $counts[] = DailyVisit::whereBetween('date', [
-                        $current->toDateString(),
-                        $weekEnd->toDateString()
-                    ])->sum('count');
-
-                    // LE CHANGEMENT ICI : On repart du lendemain du weekEnd calculé
+                    $counts[] = $weekSum;
                     $current = $weekEnd->copy()->addDay();
                 }
                 break;
-
-
         }
 
         return response()->json([
@@ -86,30 +88,33 @@ class VisitController extends Controller
             'total' => $total,
             'labels' => $labels,
             'counts' => $counts,
-            'period' => $period
+            'period' => $period,
         ]);
     }
 
-
-    // Données pour graphique
-    public function chart()
+    // Données pour graphique (optimisées et bornées aux 12 derniers mois)
+    public function chart(Request $request)
     {
-        $data = DailyVisit::orderBy('date', 'asc')
+        $months = $request->integer('months', 12);
+        $data = DailyVisit::where('date', '>=', now()->subMonths($months)->toDateString())
+            ->orderBy('date', 'asc')
             ->get(['date', 'count']);
 
         return response()->json($data);
     }
 
-
     public function track(Request $request)
     {
         $today = now()->toDateString();
 
-        // Identifiant utilisateur (IP + navigateur)
-        $identifier = $request->ip() . '|' . ($request->userAgent() ?? 'unknown');
-        $cacheKey = "visit_" . md5($identifier) . "_{$today}";
+        // Identifiant visiteur unique (visitor_id client ou empreinte IP + User-Agent)
+        $visitorId = $request->input('visitor_id');
+        $identifier = $visitorId
+            ? "vid:{$visitorId}"
+            : (($request->ip() ?? '0.0.0.0').'|'.($request->userAgent() ?? 'unknown'));
+        $cacheKey = 'visit_'.md5($identifier)."_{$today}";
 
-        // ✅ 1. Check cache AVANT DB (ultra important perf)
+        // ✅ 1. Check cache AVANT DB (ultra important perf : 1 seul comptage par visiteur unique et par jour)
         if (Cache::has($cacheKey)) {
             return response()->json(['status' => 'already_tracked']);
         }

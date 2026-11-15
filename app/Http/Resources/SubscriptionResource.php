@@ -27,7 +27,7 @@ class SubscriptionResource extends JsonResource
                 'billing_type' => $this->plan->billing_type,
                 'price' => $this->plan->price,
                 'duration' => $this->plan->duration,
-                'is_student_plan' => $this->plan->is_student_plan ? "true" : "false",
+                'is_student_plan' => $this->plan->is_student_plan ? 'true' : 'false',
                 'advantages' => $this->plan->advantages,
                 'total_payments' => $this->plan->total_payments,
                 'registration_fee' => $this->plan->registration_fee,

@@ -17,11 +17,18 @@ class Order extends Model
         'metadata',
         'commune',
         'total_items',
-        'status'
+        'status',
+        'resource_delivery_status',
+        'resource_recipient_email',
+        'resource_sent_at',
+        'delivery_attempts',
+        'delivery_error',
     ];
 
     protected $casts = [
         'metadata' => 'array',
+        'resource_sent_at' => 'datetime',
+        'delivery_attempts' => 'integer',
     ];
 
     public function transactions()

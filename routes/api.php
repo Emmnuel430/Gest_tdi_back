@@ -1,44 +1,46 @@
 <?php
 
+use App\Http\Controllers\AdherentController;
+use App\Http\Controllers\ContentController;
 use App\Http\Controllers\GalerieDossierController;
 use App\Http\Controllers\GalerieImageController;
+use App\Http\Controllers\LayoutController;
 use App\Http\Controllers\MediaController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\PageController;
 use App\Http\Controllers\PayementController;
+use App\Http\Controllers\PrayerRequestController;
 use App\Http\Controllers\SubscriptionPlanController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\TsedakaController;
+use App\Http\Controllers\UserController;
 use App\Http\Controllers\VisitController;
 use App\Models\Subsection;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\UserController;
-use App\Http\Controllers\PageController;
-use App\Http\Controllers\LayoutController;
-use App\Http\Controllers\PrayerRequestController;
-use App\Http\Controllers\AdherentController;
-use App\Http\Controllers\ContentController;
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return response()->json(['user' => $request->user()]);
-    ;
 });
 
-Route::post('login', [UserController::class, 'login']);
+// Dette #04 : Rate Limiting strict (5 tentatives par minute) contre le brute-force
+Route::post('login', [UserController::class, 'login'])->middleware('throttle:5,1');
 
-// Authentification adhérent
-Route::post('/adherent/login', [AdherentController::class, 'login']);
+// Authentification adhérent avec Rate Limiting
+Route::post('/adherent/login', [AdherentController::class, 'login'])->middleware('throttle:5,1');
 
 Route::middleware(['auth:sanctum', 'adherent'])->group(function () {
-
     Route::get('/adherent/me', [AdherentController::class, 'me']);
 
     Route::get('/adherents/contents', [ContentController::class, 'byType']);
     Route::post('/adherents/validate', [AdherentController::class, 'updateProfile']);
 
     Route::post('/adherents/logout', function (Request $request) {
-        $request->user()->currentAccessToken()->delete();
-        return response()->json(['message' => 'Déconnecté avec succès']);
+        $request->user()->currentAccessToken()?->delete();
+
+        return response()->json(['message' => 'Déconnecté avec succès'])
+            ->withCookie(Cookie::forget('auth_token'));
     });
 
     Route::get('/adherents-public/{id}', [AdherentController::class, 'show']);
@@ -47,9 +49,11 @@ Route::middleware(['auth:sanctum', 'adherent'])->group(function () {
 Route::middleware('auth:sanctum')->group(function () {
     // --------------------------------
     Route::post('/logout', function (Request $request) {
-        $request->user()->currentAccessToken()->delete();
-        return response()->json(['message' => 'Déconnecté avec succès']);
-    })->middleware('auth:sanctum');
+        $request->user()->currentAccessToken()?->delete();
+
+        return response()->json(['message' => 'Déconnecté avec succès'])
+            ->withCookie(Cookie::forget('auth_token'));
+    });
 
     Route::post('add_user', [UserController::class, 'addUser']);
     Route::get('liste_user', [UserController::class, 'listeUser']);
@@ -60,7 +64,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/add_page', [PageController::class, 'store']);
     Route::post('/update_page/{id}', [PageController::class, 'update']);
     Route::delete('/delete_page/{id}', [PageController::class, 'destroy']);
-
 
     Route::post('/ads', [LayoutController::class, 'store']);        // Créer
     Route::post('/ads/{id}', [LayoutController::class, 'update']);   // Mettre à jour
@@ -89,7 +92,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Dossiers
     Route::prefix('galerie/dossiers')->group(function () {
-
         Route::get('/', [GalerieDossierController::class, 'index']);
         Route::get('{id}', [GalerieDossierController::class, 'show']);
         Route::post('/', [GalerieDossierController::class, 'store']);
@@ -103,7 +105,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Images
     Route::prefix('galerie/images')->group(function () {
-
         // upload (single ou multiple) -> Attacher au dossier
         Route::post('/attach', [GalerieImageController::class, 'attach']);
 
@@ -126,7 +127,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Media
     Route::prefix('media')->group(function () {
-
         // list globale
         Route::get('/', [MediaController::class, 'listMedia']);
 
@@ -166,18 +166,22 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/', [OrderController::class, 'index']);
         Route::patch('{id}/status', [OrderController::class, 'changeStatus']);
         Route::patch('{id}/delivery-details', [OrderController::class, 'updateDeliveryDetails']);
+        Route::post('{id}/resend-resources', [OrderController::class, 'resendResources']);
     });
 
     // Tsedakas
     Route::get('/tsedakas', [TsedakaController::class, 'list']);
-
 });
 
 // --------------
 Route::get('/subsections/{id}', function ($id) {
-    return Subsection::findOrFail($id);
+    return Subsection::where('id', $id)
+        ->where(function ($query) {
+            $query->whereNull('publish_at')
+                  ->orWhere('publish_at', '<=', now());
+        })
+        ->firstOrFail();
 });
-
 
 Route::get('/pages', [PageController::class, 'index']);
 Route::get('/page/{id}', [PageController::class, 'get']);
@@ -185,13 +189,12 @@ Route::get('/pages/{slug}', [PageController::class, 'show']);
 Route::get('/ads', [LayoutController::class, 'index']);        // Liste tous
 Route::get('/ads/{id}', [LayoutController::class, 'show']);     // Voir un
 
-
 Route::get('/public/galerie/dossiers', [GalerieDossierController::class, 'indexPublic']);
 
 Route::post('/track', [VisitController::class, 'track']);
 
-Route::post('/payments/initiate', [PayementController::class, 'initiate']);
-Route::get('/payments/verify/{reference}', [PayementController::class, 'verify']);
-Route::post('/payments/webhook', [PayementController::class, 'webhook']);
+Route::post('/payments/initiate', [PayementController::class, 'initiate'])->middleware('throttle:30,1');
+Route::get('/payments/verify/{reference}', [PayementController::class, 'verify'])->middleware('throttle:60,1');
+Route::post('/payments/webhook', [PayementController::class, 'webhook'])->middleware('verify.paystack');
 
 Route::get('/public/subscription-plans', [SubscriptionPlanController::class, 'indexPublic']);

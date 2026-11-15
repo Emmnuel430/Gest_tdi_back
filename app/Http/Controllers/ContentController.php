@@ -3,11 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Content;
-use App\Models\SubscriptionPlan;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Log;
 
 class ContentController extends Controller
 {
@@ -26,7 +23,6 @@ class ContentController extends Controller
             'plan_ids.*' => 'exists:subscription_plans,id',
         ]);
 
-        // séparer relation
         $planIds = $validated['plan_ids'] ?? [];
 
         $isPublic = false;
@@ -46,7 +42,7 @@ class ContentController extends Controller
             case 'plans':
                 if (empty($planIds)) {
                     return response()->json([
-                        'message' => 'Veuillez sélectionner au moins un plan.'
+                        'message' => 'Veuillez sélectionner au moins un plan.',
                     ], 422);
                 }
                 $isPublic = false;
@@ -66,14 +62,13 @@ class ContentController extends Controller
 
         $content = Content::create($data);
 
-        // sync pivot
-        if (!empty($planIds)) {
+        if (! empty($planIds)) {
             $content->plans()->sync($planIds);
         }
 
         return response()->json([
             'message' => 'Contenu ajouté !',
-            'data' => $content->load('plans')
+            'data' => $content->load('plans'),
         ]);
     }
 
@@ -86,7 +81,7 @@ class ContentController extends Controller
             'type' => 'required|in:formation,cours,evenement',
             'content' => 'nullable|string',
             'lien' => 'nullable|url',
-            'publish_at' => ['nullable', 'date', 'after_or_equal:' . $minDate],
+            'publish_at' => ['nullable', 'date', 'after_or_equal:'.$minDate],
 
             'visibility' => 'required|in:public,students,plans',
 
@@ -112,7 +107,7 @@ class ContentController extends Controller
             case 'plans':
                 if (empty($planIds)) {
                     return response()->json([
-                        'message' => 'Veuillez sélectionner au moins un plan.'
+                        'message' => 'Veuillez sélectionner au moins un plan.',
                     ], 422);
                 }
                 $isPublic = false;
@@ -133,25 +128,32 @@ class ContentController extends Controller
         $content = Content::findOrFail($id);
         $content->update($data);
 
-        // sync (important : même si vide → detach)
         $content->plans()->sync($planIds);
 
         return response()->json([
             'message' => 'Contenu mis à jour avec succès !',
-            'data' => $content->load('plans')
+            'data' => $content->load('plans'),
         ]);
     }
 
-    public function index()
+    /**
+     * Dette #10 : Pagination sur la liste des contenus.
+     */
+    public function index(Request $request)
     {
-        return Content::with('plans')
-            ->latest()
-            ->get();
+        $query = Content::with('plans')->latest();
+
+        if ($request->has('page') || $request->has('per_page')) {
+            return $query->paginate($request->integer('per_page', 25));
+        }
+
+        return $query->paginate($request->integer('per_page', 25));
     }
 
     public function show($id)
     {
         $content = Content::with('plans')->findOrFail($id);
+
         return response()->json(['data' => $content]);
     }
 
@@ -159,6 +161,7 @@ class ContentController extends Controller
     {
         $content = Content::findOrFail($id);
         $content->delete();
+
         return response()->json(['status' => 'deleted', 'message' => 'Contenu supprimé avec succès !']);
     }
 
@@ -167,101 +170,37 @@ class ContentController extends Controller
         $adherent = auth()->user();
         $type = $request->query('type', 'all');
 
-        // Log::info('=== START ===', [
-        //     'user_id' => $adherent->id,
-        //     'type' => $type,
-        // ]);
+        $subscription = $adherent->activeSubscription()->with('plan')->first();
+        $activePlanIds = $subscription ? [$subscription->subscription_plan_id] : [];
+        $isAStudentPlan = ($subscription && $subscription->plan)
+            ? $subscription->plan->is_student_plan
+            : false;
 
-        return (function () use ($adherent, $request, $type) {
+        $query = Content::with('plans');
 
-            $subscription = $adherent->activeSubscription()->with('plan')->first();
+        $query->where(function ($q) use ($activePlanIds, $isAStudentPlan) {
+            $q->where('is_public', true);
 
-            // Log::info('Subscription', [
-            //     'exists' => !!$subscription,
-            //     'data' => $subscription
-            // ]);
-
-            $activePlanIds = $subscription ? [$subscription->subscription_plan_id] : [];
-
-            // Log::info('Active Plans', [
-            //     'ids' => $activePlanIds
-            // ]);
-
-            $isAStudentPlan = ($subscription && $subscription->plan)
-                ? $subscription->plan->is_student_plan
-                : false;
-
-            // Log::info('Is Student Plan', [
-            //     'value' => $isAStudentPlan
-            // ]);
-
-            // TEST DB DIRECT
-            // Log::info('TOTAL contents', [
-            //     'count' => Content::count()
-            // ]);
-
-            // Log::info('TOTAL cours', [
-            //     'count' => Content::where('type', 'cours')->count()
-            // ]);
-
-            $query = Content::with('plans');
-
-            // 🔍 AVANT FILTRE
-            // Log::info('Avant filtres', [
-            //     'count' => (clone $query)->count()
-            // ]);
-
-            // VISIBILITÉ
-            $query->where(function ($q) use ($activePlanIds, $isAStudentPlan) {
-                $q->where('is_public', true);
-
-                if (!empty($activePlanIds)) {
-                    $q->orWhereHas('plans', function ($q2) use ($activePlanIds) {
-                        $q2->whereIn('subscription_plans.id', $activePlanIds); // Précise la table
-                    });
-                }
-
-                if ($isAStudentPlan) {
-                    $q->orWhere('is_student_only', true);
-                }
-            });
-
-
-            // Log::info('Après visibilité', [
-            //     'count' => (clone $query)->count()
-            // ]);
-            // Log::info('IDs après visibilité', ['ids' => (clone $query)->pluck('id', 'type')]);
-
-            // TYPE
-            if ($type !== 'all') {
-                $query->where('type', $type);
+            if (! empty($activePlanIds)) {
+                $q->orWhereHas('plans', function ($q2) use ($activePlanIds) {
+                    $q2->whereIn('subscription_plans.id', $activePlanIds);
+                });
             }
 
-            // Log::info('Après type', [
-            //     'type' => $type,
-            //     'count' => (clone $query)->count()
-            // ]);
+            if ($isAStudentPlan) {
+                $q->orWhere('is_student_only', true);
+            }
+        });
 
-            // PUBLISH
-            $query->where(function ($q) {
-                $q->whereNull('publish_at')
-                    ->orWhere('publish_at', '<=', now());
-            });
+        if ($type !== 'all') {
+            $query->where('type', $type);
+        }
 
-            // Log::info('Après publish_at', [
-            //     'count' => (clone $query)->count()
-            // ]);
+        $query->where(function ($q) {
+            $q->whereNull('publish_at')
+                ->orWhere('publish_at', '<=', now());
+        });
 
-            $results = $query->latest()->get();
-
-            // Log::info('FINAL RESULT', [
-            //     'count' => $results->count(),
-            //     'ids' => $results->pluck('id')
-            // ]);
-
-            return $results;
-        })();
+        return $query->latest()->get();
     }
-
-
 }

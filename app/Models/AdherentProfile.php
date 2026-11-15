@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class AdherentProfile extends Model
 {
     use HasFactory;
+
     protected $fillable = [
         'adherent_id',
 

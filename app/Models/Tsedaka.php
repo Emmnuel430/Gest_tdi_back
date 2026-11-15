@@ -28,4 +28,9 @@ class Tsedaka extends Model
     {
         return $this->morphOne(Transaction::class, 'transactionable');
     }
+
+    public function transactions()
+    {
+        return $this->morphMany(Transaction::class, 'transactionable');
+    }
 }

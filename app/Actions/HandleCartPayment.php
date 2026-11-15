@@ -1,9 +1,8 @@
 <?php
+
 namespace App\Actions;
 
-use App\Models\{Order, Subsection};
-use App\Mail\OrderConfirm;
-use Illuminate\Support\Facades\{Mail, Log};
+use App\Models\Order;
 
 class HandleCartPayment
 {
@@ -23,19 +22,7 @@ class HandleCartPayment
 
         $transaction->transactionable()->associate($order)->save();
 
-        dispatch(function () use ($order, $customFields, $transaction) {
-            $resources = [];
-            foreach ($customFields['cart_details'] ?? [] as $item) {
-                $sub = Subsection::find($item['product_id']);
-                if ($sub && $sub->type === 'ressource' && $sub->link) {
-                    $resources[] = ['title' => $sub->title, 'link' => $sub->link];
-                }
-            }
-            try {
-                Mail::to($order->email)->send(new OrderConfirm($order, $resources, $transaction));
-            } catch (\Exception $e) {
-                Log::error($e->getMessage());
-            }
-        });
+        // Envoi immédiat après la réponse HTTP (sans dépendre d'un démon queue:work externe)
+        \App\Jobs\SendLibraryResourcesJob::dispatchAfterResponse($order);
     }
 }

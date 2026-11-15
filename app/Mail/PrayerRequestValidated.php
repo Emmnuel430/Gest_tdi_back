@@ -1,10 +1,11 @@
 <?php
 
 namespace App\Mail;
+
+use App\Models\PrayerRequest;
 use Illuminate\Bus\Queueable;
 use Illuminate\Mail\Mailable;
 use Illuminate\Queue\SerializesModels;
-use App\Models\PrayerRequest;
 
 class PrayerRequestValidated extends Mailable
 {
@@ -20,7 +21,7 @@ class PrayerRequestValidated extends Mailable
     public function build()
     {
         return $this
-            ->subject("Votre demande de prière a été reçue")
+            ->subject('Votre demande de prière a été reçue')
             ->view('emails.prayers.validated')
             ->text('emails.prayers.validated_plain');
     }

@@ -2,13 +2,16 @@
 
 namespace App\Actions;
 
-use App\Models\{Adherent, Content, SubscriptionPlan, Subscription};
-use App\Mail\SubscriptionWelcomeMail;
 use App\Mail\InstallmentPaidMail;
-use App\Mail\SubscriptionRenewedMail;
 use App\Mail\SubscriptionCompletedMail;
+use App\Mail\SubscriptionRenewedMail;
+use App\Mail\SubscriptionWelcomeMail;
+use App\Models\Adherent;
+use App\Models\Subscription;
+use App\Models\SubscriptionPlan;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 class HandleSubscription
 {
@@ -17,11 +20,11 @@ class HandleSubscription
         return [
             'status' => 'error',
             'message' => $message,
-            'code' => $code
+            'code' => $code,
         ];
     }
 
-    /* 
+    /*
         registration => Paiement inscription (étudiant)
         installment => Paiement d'une mensualité (étudiant)
         monthly => Paiement mensuel (abonnement classique)
@@ -34,27 +37,28 @@ class HandleSubscription
         $planId = $custom['subscription_plan_id'] ?? $metadata['subscription_plan_id'] ?? null;
         $plan = SubscriptionPlan::find($planId);
 
-        if (!$plan) {
+        if (! $plan) {
             return $this->error('Plan introuvable');
         }
 
         // Étape 2 : déterminer quel type de paiement c'est
         $paymentStep = $custom['payment_step'] ?? $metadata['payment_step'] ?? 'full';
-        // $paymentIndex = is_numeric($custom['payment_index'] ?? $metadata['payment_index'] ?? null)
-        //     ? (int) ($custom['payment_index'] ?? $metadata['payment_index'])
-        //     : null;
 
         // Étape 3 : retrouver l'adhérent
         $adherent = Adherent::where('email', $metadata['email'])->first();
 
-        // *S'il n'existe pas, on le crée proprement avec toutes les infos
-        if (!$adherent) {
+        // *S'il n'existe pas, on le crée proprement avec toutes les infos (sans exposer le hash à Paystack)
+        if (! $adherent) {
+            $cachedPassword = Cache::pull("pending_sub_pwd_{$transaction->reference}")
+                ?? Cache::pull('pending_sub_pwd_email_'.md5(strtolower($metadata['email'] ?? '')))
+                ?? ($metadata['password'] ?? bcrypt(Str::random(16)));
+
             $adherent = Adherent::create([
                 'email' => $metadata['email'],
                 'nom' => $metadata['nom'],
                 'prenom' => $metadata['prenom'],
-                'contact' => $metadata['numero'],
-                'password' => $metadata['password'], // Ici le password est requis par tes rules front
+                'contact' => $metadata['numero'] ?? null,
+                'password' => $cachedPassword,
                 'is_active' => true,
             ]);
         }
@@ -63,13 +67,12 @@ class HandleSubscription
             $adherent->update([
                 'nom' => $metadata['nom'],
                 'prenom' => $metadata['prenom'],
-                'contact' => $metadata['numero'],
+                'contact' => $metadata['numero'] ?? $adherent->contact,
             ]);
         }
 
-
         // Étape 4 : vérifier que le compte est actif
-        if (!$adherent->is_active) {
+        if (! $adherent->is_active) {
             return $this->error('Compte désactivé', 403);
         }
 
@@ -81,7 +84,6 @@ class HandleSubscription
 
         // REGISTRATION
         if ($paymentStep === 'registration') {
-
             if ($subscription) {
                 return $this->error('Abonnement déjà existant');
             }
@@ -89,23 +91,25 @@ class HandleSubscription
             $subscription = Subscription::createFromPlan($adherent, $plan);
 
             $subscription->update([
-                'next_payment_at' => now()->addMonth()
+                'next_payment_at' => now()->addMonth(),
             ]);
             // --- Envoi du mail de bienvenue après la création du premier paiement (registration)
             try {
                 Mail::to($adherent->email)->send(new SubscriptionWelcomeMail($adherent, $plan, $subscription));
             } catch (\Throwable $e) {
                 // Ne pas faire échouer le flux de paiement pour une erreur d'envoi de mail
-                \Log::warning('Welcome mail failed: ' . $e->getMessage());
+                \Log::warning('Welcome mail failed: '.$e->getMessage());
             }
         }
 
         // INSTALLMENT (étudiant)
         elseif ($paymentStep === 'installment') {
-            if (!$subscription)
+            if (! $subscription) {
                 return $this->error('Aucun abonnement actif');
-            if (!$plan->is_student_plan)
+            }
+            if (! $plan->is_student_plan) {
                 return $this->error('Plan non étudiant');
+            }
 
             if ($subscription->remaining_months <= 0) {
                 return $this->error('Mensualités déjà soldées');
@@ -135,12 +139,10 @@ class HandleSubscription
             ]);
 
             // --- Notification: paiement d'une mensualité (installment)
-            // Ici on notifie l'adhérent qu'une mensualité a été enregistrée.
             try {
-                // Mail spécifique pour une mensualité payée
                 Mail::to($adherent->email)->send(new InstallmentPaidMail($adherent, $plan, $subscription));
             } catch (\Throwable $e) {
-                \Log::warning('Installment mail failed: ' . $e->getMessage());
+                \Log::warning('Installment mail failed: '.$e->getMessage());
             }
 
             // 3. Finalisation si c'était la dernière traite
@@ -148,22 +150,20 @@ class HandleSubscription
                 $subscription->update([
                     'status' => 'completed',
                     'next_payment_at' => null,
-                    'ends_at' => $newDate // La fin de l'abonnement est la fin du dernier mois payé
+                    'ends_at' => $newDate, // La fin de l'abonnement est la fin du dernier mois payé
                 ]);
                 // --- Notification: toutes les mensualités sont soldées
                 try {
-                    // Notification de fin des mensualités
                     Mail::to($adherent->email)->send(new SubscriptionCompletedMail($adherent, $plan, $subscription));
                 } catch (\Throwable $e) {
-                    \Log::warning('Installment completion mail failed: ' . $e->getMessage());
+                    \Log::warning('Installment completion mail failed: '.$e->getMessage());
                 }
             }
         }
 
         // MONTHLY
         elseif ($paymentStep === 'monthly') {
-
-            if (!$subscription) {
+            if (! $subscription) {
                 return $this->error('Aucun abonnement actif');
             }
 
@@ -175,41 +175,35 @@ class HandleSubscription
 
             $subscription->update([
                 'ends_at' => $newDate,
-                'next_payment_at' => $newDate
+                'next_payment_at' => $newDate,
             ]);
             // --- Notification: renouvellement mensuel
             try {
-                // Notification de renouvellement mensuel
                 Mail::to($adherent->email)->send(new SubscriptionRenewedMail($adherent, $plan, $subscription));
             } catch (\Throwable $e) {
-                \Log::warning('Monthly renewal mail failed: ' . $e->getMessage());
+                \Log::warning('Monthly renewal mail failed: '.$e->getMessage());
             }
         }
 
         // FULL
         elseif ($paymentStep === 'full') {
-
             if ($subscription) {
                 return $this->error('Abonnement déjà existant');
             }
 
             $subscription = Subscription::createFromPlan($adherent, $plan);
 
-            // Pour un paiement "full" au premier payement on considère
-            // l'abonnement comme actif (afin que le backoffice l'affiche
-            // correctement et que le welcome mail soit envoyé).
-            // Si la logique métier veut un statut different, adapter ici.
             $subscription->update([
-                'status' => 'active', // changer de 'completed' -> 'active'
+                'status' => 'active',
                 'remaining_months' => 0,
-                'next_payment_at' => null
+                'next_payment_at' => null,
             ]);
 
             // --- Envoi du mail de bienvenue après paiement complet (full)
             try {
                 Mail::to($adherent->email)->send(new SubscriptionWelcomeMail($adherent, $plan, $subscription));
             } catch (\Throwable $e) {
-                \Log::warning('Welcome mail (full) failed: ' . $e->getMessage());
+                \Log::warning('Welcome mail (full) failed: '.$e->getMessage());
             }
         }
 
@@ -225,7 +219,7 @@ class HandleSubscription
 
         return [
             'status' => 'success',
-            'subscription_id' => $subscription->id
+            'subscription_id' => $subscription->id,
         ];
     }
 }

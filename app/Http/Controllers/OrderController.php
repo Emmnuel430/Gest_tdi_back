@@ -8,17 +8,28 @@ use Illuminate\Support\Facades\DB;
 
 class OrderController extends Controller
 {
-    public function index()
+    /**
+     * Dette #10 : Pagination des commandes avec rétrocompatibilité du format `{ success, data, meta }`.
+     */
+    public function index(Request $request)
     {
-        $orders = Order::with([
+        $query = Order::with([
             'transactions' => function ($query) {
                 $query->latest();
-            }
-        ])->latest()->get();
+            },
+        ])->latest();
+
+        $paginator = $query->paginate($request->integer('per_page', 25));
 
         return response()->json([
             'success' => true,
-            'data' => $orders
+            'data' => $paginator->items(),
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+            ],
         ]);
     }
 
@@ -29,15 +40,12 @@ class OrderController extends Controller
 
             'delivery_details' => 'nullable|array',
 
-            'delivery_details.*.product_id'
-            => 'required_with:delivery_details|integer',
+            'delivery_details.*.product_id' => 'required_with:delivery_details|integer',
 
-            'delivery_details.*.delivered_quantity'
-            => 'required_with:delivery_details|integer|min:0',
+            'delivery_details.*.delivered_quantity' => 'required_with:delivery_details|integer|min:0',
         ]);
 
         return DB::transaction(function () use ($request, $id) {
-
             $order = Order::with('transactions')->findOrFail($id);
 
             $allowedTransitions = [
@@ -46,10 +54,10 @@ class OrderController extends Controller
                 'canceled' => [],
             ];
 
-            if (!in_array($request->status, $allowedTransitions[$order->status])) {
+            if (! in_array($request->status, $allowedTransitions[$order->status])) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Transition de statut invalide'
+                    'message' => 'Transition de statut invalide',
                 ], 422);
             }
 
@@ -59,7 +67,7 @@ class OrderController extends Controller
                 $metadata['delivery_details'] = collect(
                     $request->delivery_details
                 )
-                    ->filter(fn($item) => $item['delivered_quantity'] > 0)
+                    ->filter(fn ($item) => $item['delivered_quantity'] > 0)
                     ->values()
                     ->toArray();
 
@@ -71,14 +79,14 @@ class OrderController extends Controller
             // CAS METIER IMPORTANT
             if ($request->status === 'canceled') {
                 $order->transactions()->update([
-                    'status' => 'refunded'
+                    'status' => 'refunded',
                 ]);
             }
 
             return response()->json([
                 'success' => true,
                 'message' => 'Statut mis à jour',
-                'data' => $order->load('transactions')
+                'data' => $order->load('transactions'),
             ]);
         });
     }
@@ -90,15 +98,12 @@ class OrderController extends Controller
         $request->validate([
             'delivery_details' => 'required|array',
 
-            'delivery_details.*.product_id'
-            => 'required|integer',
+            'delivery_details.*.product_id' => 'required|integer',
 
-            'delivery_details.*.delivered_quantity'
-            => 'required|integer|min:0',
+            'delivery_details.*.delivered_quantity' => 'required|integer|min:0',
         ]);
 
         return DB::transaction(function () use ($request, $id) {
-
             $order = Order::findOrFail($id);
 
             $metadata = $order->metadata ?? [];
@@ -108,20 +113,16 @@ class OrderController extends Controller
             );
 
             foreach ($request->delivery_details as $item) {
-
                 $orderedProduct = $cartDetails->first(
-                    fn($cartItem) =>
-                    (int) $cartItem['product_id']
+                    fn ($cartItem) => (int) $cartItem['product_id']
                     ===
                     (int) $item['product_id']
                 );
 
-                if (!$orderedProduct) {
-
+                if (! $orderedProduct) {
                     return response()->json([
                         'success' => false,
-                        'message' =>
-                            "Le produit {$item['product_id']} n'existe pas dans la commande."
+                        'message' => "Le produit {$item['product_id']} n'existe pas dans la commande.",
                     ], 422);
                 }
 
@@ -133,11 +134,9 @@ class OrderController extends Controller
                     >
                     $orderedQuantity
                 ) {
-
                     return response()->json([
                         'success' => false,
-                        'message' =>
-                            "La quantité livrée du produit {$item['product_id']} dépasse la quantité commandée."
+                        'message' => "La quantité livrée du produit {$item['product_id']} dépasse la quantité commandée.",
                     ], 422);
                 }
             }
@@ -147,7 +146,6 @@ class OrderController extends Controller
             )->keyBy('product_id');
 
             foreach ($request->delivery_details as $item) {
-
                 $current->put(
                     $item['product_id'],
                     [
@@ -159,8 +157,7 @@ class OrderController extends Controller
 
             $metadata['delivery_details'] = $current
                 ->filter(
-                    fn($item) =>
-                    $item['delivered_quantity'] > 0
+                    fn ($item) => $item['delivered_quantity'] > 0
                 )
                 ->values()
                 ->toArray();
@@ -171,10 +168,36 @@ class OrderController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' =>
-                    'Détails de livraison mis à jour',
-                'data' => $order
+                'message' => 'Détails de livraison mis à jour',
+                'data' => $order,
             ]);
         });
+    }
+
+    /**
+     * Réexpédier manuellement les ressources numériques par email depuis le backoffice.
+     */
+    public function resendResources(Request $request, $id)
+    {
+        $request->validate([
+            'email' => 'nullable|email',
+        ]);
+
+        $order = Order::with('transactions')->findOrFail($id);
+        $targetEmail = $request->email ?: $order->email;
+
+        // Mise à jour de l'état en attente de réexpédition
+        $order->update([
+            'resource_delivery_status' => 'pending',
+            'resource_recipient_email' => $targetEmail,
+        ]);
+
+        \App\Jobs\SendLibraryResourcesJob::dispatchAfterResponse($order, $targetEmail);
+
+        return response()->json([
+            'success' => true,
+            'message' => "La réexpédition des ressources vers {$targetEmail} a été lancée avec succès.",
+            'data' => $order->fresh(['transactions']),
+        ]);
     }
 }

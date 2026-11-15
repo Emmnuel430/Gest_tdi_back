@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Tsedaka;
-use Illuminate\Http\Request;
 
 class TsedakaController extends Controller
 {
@@ -13,7 +12,7 @@ class TsedakaController extends Controller
 
         return response()->json([
             'success' => true,
-            'data' => $tsedakas
+            'data' => $tsedakas,
         ]);
     }
 }
