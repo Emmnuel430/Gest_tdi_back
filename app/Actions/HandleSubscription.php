@@ -9,6 +9,7 @@ use App\Mail\SubscriptionRenewedMail;
 use App\Mail\SubscriptionCompletedMail;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 
 class HandleSubscription
 {
@@ -40,21 +41,22 @@ class HandleSubscription
 
         // Étape 2 : déterminer quel type de paiement c'est
         $paymentStep = $custom['payment_step'] ?? $metadata['payment_step'] ?? 'full';
-        // $paymentIndex = is_numeric($custom['payment_index'] ?? $metadata['payment_index'] ?? null)
-        //     ? (int) ($custom['payment_index'] ?? $metadata['payment_index'])
-        //     : null;
 
         // Étape 3 : retrouver l'adhérent
         $adherent = Adherent::where('email', $metadata['email'])->first();
 
-        // *S'il n'existe pas, on le crée proprement avec toutes les infos
+        // *S'il n'existe pas, on le crée proprement avec toutes les infos (sans exposer le hash à Paystack)
         if (!$adherent) {
+            $cachedPassword = Cache::pull("pending_sub_pwd_{$transaction->reference}")
+                ?? Cache::pull("pending_sub_pwd_email_" . md5(strtolower($metadata['email'] ?? '')))
+                ?? ($metadata['password'] ?? bcrypt(Str::random(16)));
+
             $adherent = Adherent::create([
                 'email' => $metadata['email'],
                 'nom' => $metadata['nom'],
                 'prenom' => $metadata['prenom'],
-                'contact' => $metadata['numero'],
-                'password' => $metadata['password'], // Ici le password est requis par tes rules front
+                'contact' => $metadata['numero'] ?? null,
+                'password' => $cachedPassword,
                 'is_active' => true,
             ]);
         }
@@ -63,10 +65,9 @@ class HandleSubscription
             $adherent->update([
                 'nom' => $metadata['nom'],
                 'prenom' => $metadata['prenom'],
-                'contact' => $metadata['numero'],
+                'contact' => $metadata['numero'] ?? $adherent->contact,
             ]);
         }
-
 
         // Étape 4 : vérifier que le compte est actif
         if (!$adherent->is_active) {
@@ -135,9 +136,7 @@ class HandleSubscription
             ]);
 
             // --- Notification: paiement d'une mensualité (installment)
-            // Ici on notifie l'adhérent qu'une mensualité a été enregistrée.
             try {
-                // Mail spécifique pour une mensualité payée
                 Mail::to($adherent->email)->send(new InstallmentPaidMail($adherent, $plan, $subscription));
             } catch (\Throwable $e) {
                 \Log::warning('Installment mail failed: ' . $e->getMessage());
@@ -152,7 +151,6 @@ class HandleSubscription
                 ]);
                 // --- Notification: toutes les mensualités sont soldées
                 try {
-                    // Notification de fin des mensualités
                     Mail::to($adherent->email)->send(new SubscriptionCompletedMail($adherent, $plan, $subscription));
                 } catch (\Throwable $e) {
                     \Log::warning('Installment completion mail failed: ' . $e->getMessage());
@@ -179,7 +177,6 @@ class HandleSubscription
             ]);
             // --- Notification: renouvellement mensuel
             try {
-                // Notification de renouvellement mensuel
                 Mail::to($adherent->email)->send(new SubscriptionRenewedMail($adherent, $plan, $subscription));
             } catch (\Throwable $e) {
                 \Log::warning('Monthly renewal mail failed: ' . $e->getMessage());
@@ -195,12 +192,8 @@ class HandleSubscription
 
             $subscription = Subscription::createFromPlan($adherent, $plan);
 
-            // Pour un paiement "full" au premier payement on considère
-            // l'abonnement comme actif (afin que le backoffice l'affiche
-            // correctement et que le welcome mail soit envoyé).
-            // Si la logique métier veut un statut different, adapter ici.
             $subscription->update([
-                'status' => 'active', // changer de 'completed' -> 'active'
+                'status' => 'active',
                 'remaining_months' => 0,
                 'next_payment_at' => null
             ]);

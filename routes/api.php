@@ -11,6 +11,7 @@ use App\Http\Controllers\TsedakaController;
 use App\Http\Controllers\VisitController;
 use App\Models\Subsection;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\PageController;
@@ -21,13 +22,13 @@ use App\Http\Controllers\ContentController;
 
 Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
     return response()->json(['user' => $request->user()]);
-    ;
 });
 
-Route::post('login', [UserController::class, 'login']);
+// Dette #04 : Rate Limiting strict (5 tentatives par minute) contre le brute-force
+Route::post('login', [UserController::class, 'login'])->middleware('throttle:5,1');
 
-// Authentification adhérent
-Route::post('/adherent/login', [AdherentController::class, 'login']);
+// Authentification adhérent avec Rate Limiting
+Route::post('/adherent/login', [AdherentController::class, 'login'])->middleware('throttle:5,1');
 
 Route::middleware(['auth:sanctum', 'adherent'])->group(function () {
 
@@ -37,8 +38,9 @@ Route::middleware(['auth:sanctum', 'adherent'])->group(function () {
     Route::post('/adherents/validate', [AdherentController::class, 'updateProfile']);
 
     Route::post('/adherents/logout', function (Request $request) {
-        $request->user()->currentAccessToken()->delete();
-        return response()->json(['message' => 'Déconnecté avec succès']);
+        $request->user()->currentAccessToken()?->delete();
+        return response()->json(['message' => 'Déconnecté avec succès'])
+            ->withCookie(Cookie::forget('auth_token'));
     });
 
     Route::get('/adherents-public/{id}', [AdherentController::class, 'show']);
@@ -47,9 +49,10 @@ Route::middleware(['auth:sanctum', 'adherent'])->group(function () {
 Route::middleware('auth:sanctum')->group(function () {
     // --------------------------------
     Route::post('/logout', function (Request $request) {
-        $request->user()->currentAccessToken()->delete();
-        return response()->json(['message' => 'Déconnecté avec succès']);
-    })->middleware('auth:sanctum');
+        $request->user()->currentAccessToken()?->delete();
+        return response()->json(['message' => 'Déconnecté avec succès'])
+            ->withCookie(Cookie::forget('auth_token'));
+    });
 
     Route::post('add_user', [UserController::class, 'addUser']);
     Route::get('liste_user', [UserController::class, 'listeUser']);
@@ -166,6 +169,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/', [OrderController::class, 'index']);
         Route::patch('{id}/status', [OrderController::class, 'changeStatus']);
         Route::patch('{id}/delivery-details', [OrderController::class, 'updateDeliveryDetails']);
+        Route::post('{id}/resend-resources', [OrderController::class, 'resendResources']);
     });
 
     // Tsedakas
@@ -175,7 +179,12 @@ Route::middleware('auth:sanctum')->group(function () {
 
 // --------------
 Route::get('/subsections/{id}', function ($id) {
-    return Subsection::findOrFail($id);
+    return Subsection::where('id', $id)
+        ->where(function ($query) {
+            $query->whereNull('publish_at')
+                  ->orWhere('publish_at', '<=', now());
+        })
+        ->firstOrFail();
 });
 
 
@@ -190,8 +199,8 @@ Route::get('/public/galerie/dossiers', [GalerieDossierController::class, 'indexP
 
 Route::post('/track', [VisitController::class, 'track']);
 
-Route::post('/payments/initiate', [PayementController::class, 'initiate']);
-Route::get('/payments/verify/{reference}', [PayementController::class, 'verify']);
-Route::post('/payments/webhook', [PayementController::class, 'webhook']);
+Route::post('/payments/initiate', [PayementController::class, 'initiate'])->middleware('throttle:30,1');
+Route::get('/payments/verify/{reference}', [PayementController::class, 'verify'])->middleware('throttle:60,1');
+Route::post('/payments/webhook', [PayementController::class, 'webhook'])->middleware('verify.paystack');
 
 Route::get('/public/subscription-plans', [SubscriptionPlanController::class, 'indexPublic']);

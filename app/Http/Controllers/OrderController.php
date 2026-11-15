@@ -8,17 +8,28 @@ use Illuminate\Support\Facades\DB;
 
 class OrderController extends Controller
 {
-    public function index()
+    /**
+     * Dette #10 : Pagination des commandes avec rétrocompatibilité du format `{ success, data, meta }`.
+     */
+    public function index(Request $request)
     {
-        $orders = Order::with([
+        $query = Order::with([
             'transactions' => function ($query) {
                 $query->latest();
             }
-        ])->latest()->get();
+        ])->latest();
+
+        $paginator = $query->paginate($request->integer('per_page', 25));
 
         return response()->json([
             'success' => true,
-            'data' => $orders
+            'data' => $paginator->items(),
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'last_page' => $paginator->lastPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+            ],
         ]);
     }
 
@@ -176,5 +187,32 @@ class OrderController extends Controller
                 'data' => $order
             ]);
         });
+    }
+
+    /**
+     * Réexpédier manuellement les ressources numériques par email depuis le backoffice.
+     */
+    public function resendResources(Request $request, $id)
+    {
+        $request->validate([
+            'email' => 'nullable|email',
+        ]);
+
+        $order = Order::with('transactions')->findOrFail($id);
+        $targetEmail = $request->email ?: $order->email;
+
+        // Mise à jour de l'état en attente de réexpédition
+        $order->update([
+            'resource_delivery_status' => 'pending',
+            'resource_recipient_email' => $targetEmail,
+        ]);
+
+        \App\Jobs\SendLibraryResourcesJob::dispatch($order, $targetEmail);
+
+        return response()->json([
+            'success' => true,
+            'message' => "La réexpédition des ressources vers {$targetEmail} a été mise en file d'attente avec succès.",
+            'data' => $order->fresh(['transactions'])
+        ]);
     }
 }

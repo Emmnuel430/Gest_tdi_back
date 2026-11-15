@@ -58,22 +58,26 @@ class VisitController extends Controller
                 $startOfMonth = now()->startOfMonth();
                 $endOfMonth = now()->endOfMonth();
 
+                // ⚡ 1 seule requête SQL pour tout le mois au lieu de N requêtes dans la boucle
+                $dailyVisits = DailyVisit::whereBetween('date', [
+                    $startOfMonth->toDateString(),
+                    $endOfMonth->toDateString()
+                ])->pluck('count', 'date');
+
                 $current = $startOfMonth->copy();
 
                 while ($current <= $endOfMonth) {
-                    // La fin est soit le dimanche suivant, soit la fin du mois
                     $weekEnd = $current->copy()->endOfWeek()->min($endOfMonth);
-
-                    // Label clair
                     $labels[] = $current->format('d/m') . ' → ' . $weekEnd->format('d/m');
 
-                    // On somme bien TOUS les jours inclus
-                    $counts[] = DailyVisit::whereBetween('date', [
-                        $current->toDateString(),
-                        $weekEnd->toDateString()
-                    ])->sum('count');
+                    $weekSum = 0;
+                    $dayIter = $current->copy();
+                    while ($dayIter <= $weekEnd) {
+                        $weekSum += $dailyVisits[$dayIter->toDateString()] ?? 0;
+                        $dayIter->addDay();
+                    }
 
-                    // LE CHANGEMENT ICI : On repart du lendemain du weekEnd calculé
+                    $counts[] = $weekSum;
                     $current = $weekEnd->copy()->addDay();
                 }
                 break;
@@ -91,10 +95,12 @@ class VisitController extends Controller
     }
 
 
-    // Données pour graphique
-    public function chart()
+    // Données pour graphique (optimisées et bornées aux 12 derniers mois)
+    public function chart(Request $request)
     {
-        $data = DailyVisit::orderBy('date', 'asc')
+        $months = $request->integer('months', 12);
+        $data = DailyVisit::where('date', '>=', now()->subMonths($months)->toDateString())
+            ->orderBy('date', 'asc')
             ->get(['date', 'count']);
 
         return response()->json($data);

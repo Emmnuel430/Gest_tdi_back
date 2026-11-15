@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
-
 use App\Http\Requests\StoreProfileRequest;
 use App\Http\Resources\AdherentResource;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cookie;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
@@ -16,14 +16,18 @@ use Illuminate\Validation\ValidationException;
 
 class AdherentController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        return Adherent::with([
+        $query = Adherent::with([
             'activeSubscription.plan',
             'activeSubscription.transactions'
-        ])
-            ->orderByDesc('created_at')
-            ->get();
+        ])->orderByDesc('created_at');
+
+        if ($request->has('page') || $request->has('per_page')) {
+            return $query->paginate($request->integer('per_page', 50));
+        }
+
+        return $query->get();
     }
 
     public function destroy($id)
@@ -107,12 +111,22 @@ class AdherentController extends Controller
         $adherent->load('activeSubscription.plan');
 
         $token = $adherent->createToken('auth_token')->plainTextToken;
+        $cookie = Cookie::make(
+            'auth_token',
+            $token,
+            60 * 24,
+            '/',
+            null,
+            app()->environment('production'),
+            true,
+            false,
+            'Lax'
+        );
 
         return response()->json([
             'token' => $token,
             'adherent' => new AdherentResource($adherent)
-
-        ]);
+        ])->withCookie($cookie);
     }
 
     public function updateProfile(StoreProfileRequest $request)
@@ -173,5 +187,4 @@ class AdherentController extends Controller
             'adherent' => new AdherentResource($adherent)
         ]);
     }
-
 }

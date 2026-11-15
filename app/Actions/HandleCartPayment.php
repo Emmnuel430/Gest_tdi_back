@@ -23,19 +23,7 @@ class HandleCartPayment
 
         $transaction->transactionable()->associate($order)->save();
 
-        dispatch(function () use ($order, $customFields, $transaction) {
-            $resources = [];
-            foreach ($customFields['cart_details'] ?? [] as $item) {
-                $sub = Subsection::find($item['product_id']);
-                if ($sub && $sub->type === 'ressource' && $sub->link) {
-                    $resources[] = ['title' => $sub->title, 'link' => $sub->link];
-                }
-            }
-            try {
-                Mail::to($order->email)->send(new OrderConfirm($order, $resources, $transaction));
-            } catch (\Exception $e) {
-                Log::error($e->getMessage());
-            }
-        });
+        // Dispatch du job robuste avec retries et traçabilité d'envoi
+        \App\Jobs\SendLibraryResourcesJob::dispatch($order);
     }
 }

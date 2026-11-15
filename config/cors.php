@@ -7,11 +7,8 @@ return [
     | Cross-Origin Resource Sharing (CORS) Configuration
     |--------------------------------------------------------------------------
     |
-    | Here you may configure your settings for cross-origin resource sharing
-    | or "CORS". This determines what cross-origin operations may execute
-    | in web browsers. You are free to adjust these settings as needed.
-    |
-    | To learn more: https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
+    | Dette #05 : Liste explicite d'origines autorisées compatible avec
+    | supports_credentials = true (norme W3C Fetch/CORS).
     |
     */
 
@@ -19,7 +16,10 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['*'],
+    'allowed_origins' => array_values(array_filter(array_map(
+        'trim',
+        explode(',', env('CORS_ALLOWED_ORIGINS', 'http://localhost:3000,http://localhost:3001,https://www.torahdiffusion.ci,https://admin.torahdiffusion.ci'))
+    ))),
 
     'allowed_origins_patterns' => [],
 

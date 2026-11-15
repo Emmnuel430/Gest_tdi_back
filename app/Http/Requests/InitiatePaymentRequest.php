@@ -27,13 +27,15 @@ class InitiatePaymentRequest extends FormRequest
         return [
             'email' => 'required|email',
             'numero' => 'nullable|string',
-            'totalPrice' => 'required|numeric',
+            'totalPrice' => 'required|numeric|min:1',
             'type' => 'required|string|in:cart,prayer-request,subscription,tsedaka',
 
             'callback_url' => 'nullable|string',
 
             // uniquement si cart
-            'cart' => 'required_if:type,cart|array',
+            'cart' => 'required_if:type,cart|array|min:1',
+            'cart.*.product_id' => 'required_with:cart|integer|exists:subsections,id',
+            'cart.*.quantity' => 'required_with:cart|integer|min:1',
 
             // uniquement si prière
             'objet' => 'required_if:type,prayer-request|string',
@@ -47,11 +49,9 @@ class InitiatePaymentRequest extends FormRequest
                 Rule::requiredIf(fn() => in_array($this->payment_step, ['registration', 'full']))
             ],
 
-
             'message' => 'nullable|string',
             'montant' => 'required_if:type,tsedaka|numeric|min:100',
             'anonymous' => 'required_if:type,tsedaka|boolean',
         ];
-
     }
 }

@@ -13,7 +13,7 @@ return new class extends Migration {
     public function up()
     {
         Schema::table('prayer_requests', function (Blueprint $table) {
-            $table->boolean('is_validated')->default(false)->after('preuve_paiement');
+            $table->boolean('is_validated')->default(false);
         });
     }
 

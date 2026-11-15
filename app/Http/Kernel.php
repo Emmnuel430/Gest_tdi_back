@@ -21,6 +21,7 @@ class Kernel extends HttpKernel
         \Illuminate\Foundation\Http\Middleware\ValidatePostSize::class,
         \App\Http\Middleware\TrimStrings::class,
         \Illuminate\Foundation\Http\Middleware\ConvertEmptyStringsToNull::class,
+        \App\Http\Middleware\AttachTokenFromCookie::class,
     ];
 
     /**
@@ -40,10 +41,10 @@ class Kernel extends HttpKernel
         ],
 
         'api' => [
+            \App\Http\Middleware\AttachTokenFromCookie::class,
             \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
             'throttle:api',
             \Illuminate\Routing\Middleware\SubstituteBindings::class,
-            // \App\Http\Middleware\EnsureAdherent::class, Middleware pour vérifier si l'utilisateur est un adhérent
         ],
     ];
 
@@ -60,9 +61,11 @@ class Kernel extends HttpKernel
         'can' => \Illuminate\Auth\Middleware\Authorize::class,
         'guest' => \App\Http\Middleware\RedirectIfAuthenticated::class,
         'password.confirm' => \Illuminate\Auth\Middleware\RequirePassword::class,
-        'signed' => \App\Http\Middleware\ValidateSignature::class,
+        'signed' => \Illuminate\Auth\Middleware\ValidateSignature::class,
         'throttle' => \Illuminate\Routing\Middleware\ThrottleRequests::class,
         'verified' => \Illuminate\Auth\Middleware\EnsureEmailIsVerified::class,
-        'adherent' => \App\Http\Middleware\EnsureAdherent::class, // Middleware personnalisé pour vérifier si l'utilisateur est un adhérent
+        'adherent' => \App\Http\Middleware\EnsureAdherent::class,
+        'role' => \App\Http\Middleware\EnsureUserHasRole::class,
+        'verify.paystack' => \App\Http\Middleware\VerifyPaystackSignature::class,
     ];
 }

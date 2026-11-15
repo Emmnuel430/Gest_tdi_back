@@ -19,10 +19,11 @@ class MediaController extends Controller
 
             $media = Media::findOrFail($id);
 
-            // 🔍 Vérifier utilisation
+            // 🔍 Dette #12 : Empêcher la suppression dès qu'au moins 1 dossier utilise ce média ($usageCount > 0)
             $usageCount = $media->galerieImages()->count();
 
-            if ($usageCount > 1) {
+            if ($usageCount > 0) {
+                DB::rollBack();
                 return response()->json([
                     'error' => 'Ce media est utilisé dans des dossiers',
                 ], 400);
@@ -53,27 +54,22 @@ class MediaController extends Controller
             ], 500);
         }
     }
+
     public function forceDeleteMedia(Request $request)
     {
         $request->validate([
             'ids' => 'required|array',
-            'ids.*' => 'exists:media,id', // On vérifie que les IDs existent
+            'ids.*' => 'exists:media,id',
         ]);
 
         DB::beginTransaction();
 
         try {
-            // 1. Récupérer tous les médias pour avoir accès aux chemins de fichiers
             $medias = Media::whereIn('id', $request->ids)->get();
 
             foreach ($medias as $media) {
-                // 2. Supprimer les relations (galerie_images)
                 $media->galerieImages()->delete();
-
-                // 3. Supprimer le fichier physique
                 Storage::disk('public')->delete($media->file_path);
-
-                // 4. Supprimer l'entrée en base (forceDelete si SoftDelete utilisé)
                 $media->delete();
             }
 

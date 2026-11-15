@@ -12,17 +12,31 @@ use Illuminate\Support\Facades\Storage;
 use HTMLPurifier;
 use HTMLPurifier_Config;
 
-
 class PageController extends Controller
 {
-    // 🔍 Liste des pages avec relations
-    public function index()
+    // 🔍 Liste des pages avec relations (Dette #10 : Support pagination + filtrage public)
+    public function index(Request $request)
     {
-        return Page::with(['sections.subsections'])
-            ->orderByRaw('`order` IS NULL, `order` ASC') // 👈 NULLs à la fin
-            ->get();
-    }
+        $isAdmin = auth('sanctum')->check();
+        $now = now();
 
+        $query = Page::with([
+            'sections.subsections' => function ($q) use ($isAdmin, $now) {
+                if (!$isAdmin) {
+                    $q->where(function ($subQ) use ($now) {
+                        $subQ->whereNull('publish_at')
+                             ->orWhere('publish_at', '<=', $now);
+                    });
+                }
+            }
+        ])->orderByRaw('`order` IS NULL, `order` ASC');
+
+        if ($request->has('page') || $request->has('per_page')) {
+            return $query->paginate($request->integer('per_page', 25));
+        }
+
+        return $query->get();
+    }
 
     // ➕ Création complète : page + sections + sous-sections
     public function store(Request $request)
@@ -32,21 +46,14 @@ class PageController extends Controller
         DB::beginTransaction();
 
         try {
-            // Création de la page sans l'image principale
-            // 🧠 Gestion de l'ordre
             $maxOrder = Page::max('order') ?? 0;
-
-            // Nettoyage + sécurisation
             $order = (int) $request->order;
-
-            // Clamp (très important)
             $order = max(1, min($order ?: $maxOrder + 1, $maxOrder + 1));
 
             if ($order <= $maxOrder) {
                 Page::where('order', '>=', $order)->increment('order');
             }
 
-            // Création page
             $page = Page::create([
                 'title' => $request->title,
                 'subtitle' => $request->subtitle,
@@ -56,16 +63,13 @@ class PageController extends Controller
                 'order' => $order,
             ]);
 
-
             $pageId = $page->id;
 
-            // Image principale
             if ($request->hasFile('main_image')) {
                 $mainImagePath = $request->file('main_image')->store("pages/page_$pageId/main", 'public');
                 $page->update(['main_image' => $mainImagePath]);
             }
 
-            // Sections et sous-sections
             foreach ($request->input('sections', []) as $i => $sectionData) {
                 $sectionImagePath = null;
                 if ($request->hasFile("sections.$i.image")) {
@@ -77,6 +81,9 @@ class PageController extends Controller
                     'subtitle' => $sectionData['subtitle'] ?? '',
                     'image' => $sectionImagePath,
                     'order' => $sectionData['order'] ?? 1,
+                    'is_visible' => isset($sectionData['is_visible'])
+                        ? filter_var($sectionData['is_visible'], FILTER_VALIDATE_BOOLEAN)
+                        : true,
                 ]);
 
                 foreach ($sectionData['subsections'] ?? [] as $j => $subsectionData) {
@@ -89,19 +96,18 @@ class PageController extends Controller
 
                     $section->subsections()->create([
                         'title' => $subsectionData['title'],
-                        'type' => $subsectionData['type'],
+                        'type' => $subsectionData['type'] ?? 'classique',
                         'content' => $cleanHtml,
-                        'date' => $subsectionData['date'] === 'null' || empty($subsectionData['date']) ? null : $subsectionData['date'],
+                        'date' => ($subsectionData['date'] ?? null) === 'null' || empty($subsectionData['date']) ? null : $subsectionData['date'],
                         'prix' => $subsectionData['prix'] ?? null,
                         'image' => $subImagePath,
-                        'link' => $subsectionData['link'],
+                        'link' => $subsectionData['link'] ?? null,
                         'order' => $subsectionData['order'] ?? 1,
                         'publish_at' => $subsectionData['publish_at'] ?? null,
                     ]);
                 }
             }
 
-            // À la fin, juste avant commit
             $page->touch();
 
             DB::commit();
@@ -114,30 +120,20 @@ class PageController extends Controller
     }
 
     // ✏️ Mise à jour d’une page complète (sections & sous-sections comprises)
-
     public function update(Request $request, $id)
     {
-        // Configuration de HTMLPurifier pour nettoyer le HTML des sous-sections
         $config = HTMLPurifier_Config::createDefault();
         $purifier = new HTMLPurifier($config);
         DB::beginTransaction();
 
         try {
-            // Récupération de la page avec ses sections et sous-sections
             $page = Page::with('sections.subsections')->findOrFail($id);
             $pageId = $page->id;
 
-            /*
-            |--------------------------------------------------------------------------
-            | 1. Gestion de l'image principale de la page
-            |--------------------------------------------------------------------------
-            */
-            // Suppression demandée depuis le front
             if ($request->input('delete_main_image') === "1" && $page->main_image) {
                 Storage::disk('public')->delete($page->main_image);
                 $mainImagePath = null;
             } else {
-                // Gérer remplacement image principale si fournie
                 if ($request->hasFile('main_image') && $page->main_image) {
                     Storage::disk('public')->delete($page->main_image);
                 }
@@ -146,7 +142,6 @@ class PageController extends Controller
                     : $page->main_image;
             }
 
-            // Mise à jour des informations principales de la page
             $page->update([
                 'title' => $request->title,
                 'subtitle' => $request->subtitle,
@@ -156,22 +151,14 @@ class PageController extends Controller
                 'order' => $request->order ?? null,
             ]);
 
-            $sectionIdsToKeep = [];      // Liste des sections conservées
-            /*
-            |--------------------------------------------------------------------------
-            | 2. Parcours des sections envoyées par le frontend
-            |--------------------------------------------------------------------------
-            */
+            $sectionIdsToKeep = [];
             foreach ($request->input('sections', []) as $i => $sectionData) {
-                // Récupère une section existante ou null
                 $section = isset($sectionData['id'])
                     ? $page->sections()->where('id', $sectionData['id'])->first()
                     : null;
 
-                // Chemin de l'image de section (ancienne ou à remplacer)
                 $sectionImagePath = $section->image ?? null;
 
-                // Suppression de l'image si demandé par le frontend
                 if ($request->input("sections.$i.delete_image") === "1") {
                     if ($sectionImagePath) {
                         Storage::disk('public')->delete($sectionImagePath);
@@ -179,7 +166,6 @@ class PageController extends Controller
                     $sectionImagePath = null;
                 }
 
-                // Upload d'une nouvelle image si fournie
                 if ($request->hasFile("sections.$i.image")) {
                     if ($sectionImagePath) {
                         Storage::disk('public')->delete($sectionImagePath);
@@ -187,13 +173,17 @@ class PageController extends Controller
                     $sectionImagePath = $request->file("sections.$i.image")->store("pages/page_$pageId/sections", 'public');
                 }
 
-                // Mise à jour ou création de la section
+                $isVisible = isset($sectionData['is_visible'])
+                    ? filter_var($sectionData['is_visible'], FILTER_VALIDATE_BOOLEAN)
+                    : ($section ? $section->is_visible : true);
+
                 if ($section) {
                     $section->update([
                         'title' => $sectionData['title'],
                         'subtitle' => $sectionData['subtitle'] ?? '',
                         'image' => $sectionImagePath,
                         'order' => $sectionData['order'] ?? 1,
+                        'is_visible' => $isVisible,
                     ]);
                 } else {
                     $section = $page->sections()->create([
@@ -201,16 +191,12 @@ class PageController extends Controller
                         'subtitle' => $sectionData['subtitle'] ?? '',
                         'image' => $sectionImagePath,
                         'order' => $sectionData['order'] ?? 1,
+                        'is_visible' => $isVisible,
                     ]);
                 }
 
                 $sectionIdsToKeep[] = $section->id;
 
-                /*
-                |--------------------------------------------------------------------------
-                | 3. Sous-sections liées à cette section
-                |--------------------------------------------------------------------------
-                */
                 foreach ($sectionData['subsections'] ?? [] as $j => $subsectionData) {
                     $sub = isset($subsectionData['id'])
                         ? $section->subsections()->where('id', $subsectionData['id'])->first()
@@ -218,7 +204,6 @@ class PageController extends Controller
 
                     $subImagePath = $sub->image ?? null;
 
-                    // Suppression de l'image si demandée
                     if ($request->input("sections.$i.subsections.$j.delete_image") === "1") {
                         if ($subImagePath) {
                             Storage::disk('public')->delete($subImagePath);
@@ -226,7 +211,6 @@ class PageController extends Controller
                         $subImagePath = null;
                     }
 
-                    // Upload nouvelle image de sous-section
                     if ($request->hasFile("sections.$i.subsections.$j.image")) {
                         if ($subImagePath) {
                             Storage::disk('public')->delete($subImagePath);
@@ -234,31 +218,29 @@ class PageController extends Controller
                         $subImagePath = $request->file("sections.$i.subsections.$j.image")->store("pages/page_$pageId/subsections", 'public');
                     }
 
-                    // Nettoyage du HTML (éditeur richtext)
                     $cleanHtml = $purifier->purify($subsectionData['content'] ?? '');
 
-                    // Mise à jour ou création de la sous-section
                     if ($sub) {
                         $sub->update([
                             'title' => $subsectionData['title'],
-                            'type' => $subsectionData['type'],
+                            'type' => $subsectionData['type'] ?? 'classique',
                             'content' => $cleanHtml,
                             'date' => empty($subsectionData['date']) || $subsectionData['date'] === 'null' ? null : $subsectionData['date'],
                             'prix' => $subsectionData['prix'] ?? null,
                             'image' => $subImagePath,
-                            'link' => $subsectionData['link'],
+                            'link' => $subsectionData['link'] ?? null,
                             'order' => $subsectionData['order'] ?? 1,
                             'publish_at' => $subsectionData['publish_at'] ?? null,
                         ]);
                     } else {
                         $sub = $section->subsections()->create([
                             'title' => $subsectionData['title'],
-                            'type' => $subsectionData['type'],
+                            'type' => $subsectionData['type'] ?? 'classique',
                             'content' => $cleanHtml,
                             'date' => empty($subsectionData['date']) || $subsectionData['date'] === 'null' ? null : $subsectionData['date'],
                             'prix' => $subsectionData['prix'] ?? null,
                             'image' => $subImagePath,
-                            'link' => $subsectionData['link'],
+                            'link' => $subsectionData['link'] ?? null,
                             'order' => $subsectionData['order'] ?? 1,
                             'publish_at' => $subsectionData['publish_at'] ?? null,
                         ]);
@@ -268,17 +250,10 @@ class PageController extends Controller
                 }
             }
 
-            /*
-            |--------------------------------------------------------------------------
-            | 4. Suppression des sections non conservées
-            |--------------------------------------------------------------------------
-            */
             $page->sections()->whereNotIn('id', $sectionIdsToKeep)->each(function ($section) {
-                // Supprimer image de section
                 if ($section->image)
                     Storage::disk('public')->delete($section->image);
 
-                // Supprimer toutes les sous-sections de cette section
                 $section->subsections->each(function ($sub) {
                     if ($sub->image)
                         Storage::disk('public')->delete($sub->image);
@@ -288,11 +263,6 @@ class PageController extends Controller
                 $section->delete();
             });
 
-            /*
-            |--------------------------------------------------------------------------
-            | 5. Suppression explicite de sous-sections (via deleted_subsections[])
-            |--------------------------------------------------------------------------
-            */
             if ($request->has('deleted_subsections')) {
                 foreach ($request->input('deleted_subsections') as $deletedId) {
                     $sub = Subsection::find($deletedId);
@@ -305,12 +275,7 @@ class PageController extends Controller
                 }
             }
 
-            /*
-            |--------------------------------------------------------------------------
-            | 6. Finalisation
-            |--------------------------------------------------------------------------
-            */
-            $page->touch(); // Mise à jour du timestamp `updated_at`
+            $page->touch();
             DB::commit();
 
             return response()->json(['message' => 'Page mise à jour avec succès']);
@@ -325,7 +290,6 @@ class PageController extends Controller
     public function destroy($id)
     {
         $page = Page::findOrFail($id);
-        // Supprimer le dossier entier
         Storage::disk('public')->deleteDirectory("pages/page_{$page->id}");
         $page->delete();
         return response()->json(['message' => 'Page supprimée avec succès', 'status' => "deleted"]);
@@ -338,8 +302,10 @@ class PageController extends Controller
 
         $page = Page::with([
             'sections.subsections' => function ($query) use ($now) {
-                $query->whereNull('publish_at')
-                    ->orWhere('publish_at', '<=', $now);
+                $query->where(function ($subQ) use ($now) {
+                    $subQ->whereNull('publish_at')
+                         ->orWhere('publish_at', '<=', $now);
+                });
             }
         ])
             ->where('slug', $slug)
@@ -348,12 +314,23 @@ class PageController extends Controller
         return response()->json($page);
     }
 
-
-    // 🔎 Afficher une page par id (pour le front-office)
+    // 🔎 Afficher une page par id (Dette #06 : Filtrage strict de publish_at pour tout appel non-admin)
     public function get($id)
     {
-        $page = Page::with('sections.subsections')->findOrFail($id);
+        $isAdmin = auth('sanctum')->check();
+        $now = now();
+
+        $page = Page::with([
+            'sections.subsections' => function ($query) use ($isAdmin, $now) {
+                if (!$isAdmin) {
+                    $query->where(function ($subQ) use ($now) {
+                        $subQ->whereNull('publish_at')
+                             ->orWhere('publish_at', '<=', $now);
+                    });
+                }
+            }
+        ])->findOrFail($id);
+
         return response()->json($page);
     }
-
 }

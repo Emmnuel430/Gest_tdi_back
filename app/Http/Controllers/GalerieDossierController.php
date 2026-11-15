@@ -48,15 +48,24 @@ class GalerieDossierController extends Controller
         return response()->json($dossiers);
     }
 
+    /**
+     * Dette #11 : Filtrage strict des dossiers et images visibles (`is_visible = true`) sur l'API publique.
+     */
     public function indexPublic()
     {
-        $dossiers = GalerieDossier::with([
-            'images' => function ($query) {
-                $query->with('media')
-                    ->orderBy('ordre');
-            }
-        ])
-            ->withCount('images')
+        $dossiers = GalerieDossier::where('is_visible', true)
+            ->with([
+                'images' => function ($query) {
+                    $query->where('is_visible', true)
+                        ->with('media')
+                        ->orderBy('ordre');
+                }
+            ])
+            ->withCount([
+                'images' => function ($query) {
+                    $query->where('is_visible', true);
+                }
+            ])
             ->latest()
             ->get();
 

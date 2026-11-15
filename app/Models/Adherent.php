@@ -44,8 +44,10 @@ class Adherent extends Authenticatable
     public function activeSubscription()
     {
         return $this->hasOne(Subscription::class)
-            ->where('status', 'active')
-            ->orWhere('status', 'completed');
+            ->where(function ($query) {
+                $query->where('status', 'active')
+                    ->orWhere('status', 'completed');
+            });
     }
 
     protected static function booted()
